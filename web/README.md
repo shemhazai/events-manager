@@ -7,10 +7,6 @@ This project was generated using [Angular CLI](https://github.com/angular/angula
 This project uses **pnpm**. Install dependencies with `pnpm install` (or
 `pnpm install --frozen-lockfile` for a reproducible install). Do not use `npm` or `npx` here.
 
-Always go through the `package.json` scripts rather than calling `ng` directly: `start`,
-`build`, `watch` and `test` each regenerate the design tokens first (`pnpm tokens && ng ...`).
-Running `ng build` on its own silently builds against a stale `src/styles/_tokens.scss`.
-
 ## Development server
 
 To start a local development server, run:

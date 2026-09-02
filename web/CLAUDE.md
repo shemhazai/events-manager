@@ -38,30 +38,16 @@ Deux sources de vérité qui ne se recouvrent pas. **Ne jamais redéfinir en `--
 - **Material 3** couvre les couleurs de rôle (`--mat-sys-primary`, `surface`, `error`, `outline`...), l'échelle typographique complète, les rayons (`--mat-sys-corner-*`) et les élévations. Les tokens typographiques sont des **shorthands `font` complets** (graisse, taille, interligne, famille) : ne jamais les surcharger avec une simple taille.
 - **Les `--app-*`** comblent ce que Material n'a pas : les espacements (`--app-spacing-xs` → `xxl`) et les couleurs sémantiques succès / avertissement (`--app-color-success`, `--app-color-on-success`, `--app-color-warning`, `--app-color-on-warning`).
 
-Chaîne de génération :
+Les deux fichiers de `src/styles/` n'ont pas le même statut, ne pas les confondre :
 
-```
-Figma  ──►  tokens/app.tokens.json   ──┐
-            (export DTCG, mode clair)   ├─►  scripts/build-tokens.mjs  ──►  src/styles/_tokens.scss
-            tokens/modes/dark.tokens.json ┘        (Style Dictionary)          (--app-*, light-dark())
-```
+- `src/styles/_tokens.scss` est une **source écrite à la main**, elle s'édite directement. Dix `--app-*`, pas de génération, pas d'outil en amont.
+- `src/styles/_theme-colors.scss` est un **fichier généré, à ne jamais éditer** : palette M3 dérivée de `#B0413E` par `ng generate @angular/material:theme-color --primary-color='#B0413E' --directory=src/styles/ --interactive=false`. Régénéré à la main uniquement, pas au build : la reproductibilité du schematic dépend de sa non-modification. Seul `primary` est fixé, M3 dérive le reste.
 
-- `tokens/app.tokens.json` est la **source, produite par Figma : ne jamais la modifier**. Une valeur fausse se corrige en amont dans Figma puis se réexporte. La signaler, pas la corriger.
-- `tokens/modes/dark.tokens.json` porte les valeurs sombres, saisies à la main (le plan Figma gratuit n'a pas les modes de variables). Mêmes chemins de clés que la source, valeurs littérales, aucun token qui n'existe pas dans la source — le script échoue s'il en trouve un.
-- Export Figma → code **semi-manuel et assumé**. Sync automatique différée : à évaluer au-delà de ~15 composants, l'API REST Variables de Figma étant réservée au plan Enterprise.
-
-Fichiers générés — **ne jamais les éditer, les ouvrir pour y toucher signale un pipeline cassé** :
-
-- `src/styles/_tokens.scss` — Style Dictionary, via `pnpm tokens`.
-- `src/styles/_theme-colors.scss` — palette M3 dérivée de `#B0413E` par `ng generate @angular/material:theme-color --primary-color='#B0413E' --directory=src/styles/ --interactive=false`. Régénéré à la main uniquement, pas au build : la reproductibilité du schematic dépend de sa non-modification. Seul `primary` est fixé, M3 dérive le reste.
-
-Les deux sont **versionnés**. Corollaire, règle de non-dérive : `pnpm tokens` suivi de `git diff --exit-code src/styles/_tokens.scss` doit rendre un arbre propre. Un diff signifie que le généré commité est périmé (typiquement après un bump de `style-dictionary`) : le recommiter, jamais l'éditer. Ce contrôle deviendra un contrôle de CI.
+**Ne pas réintroduire de chaîne de génération pour ces tokens** : ni dossier `tokens/`, ni fichier source intermédiaire, ni dépendance de build chargée de transformer des valeurs en CSS, ni import depuis un outil de design externe. Une telle chaîne a existé et a été retirée délibérément : dix valeurs ne justifient pas une transformation qui ne protège que contre les erreurs qu'elle rend elle-même possibles.
 
 Mode sombre : `mat.theme()` tourne avec son `theme-type` par défaut (`color-scheme`), donc Material émet déjà chaque `--mat-sys-*` en `light-dark(clair, sombre)`. Les `--app-color-*` reprennent la même convention, et `body { color-scheme: light dark; }` fait basculer les deux ensemble sur le réglage système. Ne pas introduire de sélecteur `.dark` ni de `@media (prefers-color-scheme)` en parallèle.
 
-Aucune étape manuelle : les scripts `start` / `build` / `watch` / `test` de `package.json` enchaînent explicitement `pnpm tokens && ng ...`. Un clone frais fait `pnpm install` puis n'importe lequel des quatre.
-
-**Ne pas revenir à des hooks `pre*`** (`prestart`, `prebuild`...) : pnpm ne les exécute pas par défaut (`enablePrePostScripts` vaut `false`). Comme `_tokens.scss` est versionné, le build resterait vert avec des tokens périmés — la panne serait silencieuse. L'enchaînement explicite ne dépend d'aucun réglage.
+`light-dark()` n'est valide qu'en contexte couleur. Ne jamais l'employer sur un espacement : une custom property l'accepterait sans broncher, le build resterait vert, et la valeur ne casserait qu'au point d'utilisation.
 
 ## Conventions
 

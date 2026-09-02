@@ -10,7 +10,7 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 
 - API : C# / .NET 10, ASP.NET Core. EF Core 10. SQL Server.
 - Front : Angular 22 (signals, standalone, Signal Forms, OnPush/Zoneless par défaut), Angular Material. Gestionnaire de paquets : **pnpm** (jamais `npm` ni `npx` — `pnpm dlx` remplace `npx`) ; détails dans `web/CLAUDE.md`.
-- Design tokens : export semi-manuel depuis Figma via Style Dictionary (variables CSS/SCSS). Sync automatique Figma→code **différée** : à évaluer quand > ~15 composants. Ne pas automatiser avant ce seuil.
+- Design tokens : custom properties `--app-*` **maintenues à la main** dans `web/src/styles/_tokens.scss`. Elles comblent uniquement ce que Material 3 ne fournit pas (espacements, couleurs sémantiques succès/avertissement). Aucun outil de design en amont, aucune génération.
 - Tests : xUnit + Testcontainers SQL Server (intégration), Playwright (E2E fin, parcours critiques uniquement).
 
 ## Architecture (Clean Architecture, 4 couches)
