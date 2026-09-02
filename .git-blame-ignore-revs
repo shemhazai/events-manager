@@ -1,0 +1,17 @@
+# Commits de reformatage pur, a masquer de git blame.
+#
+# N'y mettre qu'un commit dont le diff ne change aucun comportement :
+# normalisation de fins de ligne, passage d'un formateur, renommage massif.
+# Jamais un commit qui touche a la logique, il deviendrait invisible en blame.
+#
+# GitHub lit ce fichier automatiquement dans sa vue blame.
+# En local, il faut le declarer une fois par clone :
+#
+#     git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# Les SHA doivent etre complets : un SHA abrege fait echouer git blame avec
+# « invalid object name ». Un commit reecrit (rebase, amend) change de SHA et
+# doit etre mis a jour ici.
+
+# style: normalise les fins de ligne de tout le depot
+913437e2cc9a3b7e020b6ba7c94ee64f0efe8b1b
