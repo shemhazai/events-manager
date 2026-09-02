@@ -79,6 +79,26 @@ public class OrderRepositoryTests(SqlServerContainerFixture fixture)
     }
 
     [Fact]
+    public async Task OrdersTable_DoesNotStoreTheTotal()
+    {
+        // OR-C5 : le total n'est ni saisi ni stocké, il est calculé — aucune colonne de
+        // total dans app.Orders. Introspection du schéma réel, pas du modèle EF.
+        await using var context = _fixture.CreateContext();
+
+        var columns = await context.Database
+            .SqlQuery<string>($"SELECT name AS Value FROM sys.columns WHERE object_id = OBJECT_ID('app.Orders')")
+            .ToListAsync(TestContext.Current.CancellationToken);
+
+        // Garde-fou : table introuvable ou mal nommée = liste vide, l'assertion suivante
+        // passerait à vide.
+        columns.Should().NotBeEmpty();
+
+        columns.Where(name => name.Contains("total", StringComparison.OrdinalIgnoreCase))
+               .Should()
+               .BeEmpty();
+    }
+
+    [Fact]
     public async Task InsertLineViaSql_WithDuplicateLabelIgnoringCase_ThrowsPrimaryKeyViolation()
     {
         // Filet physique du « pas de doublon de libellé » (OR-C4) : la PK composite
