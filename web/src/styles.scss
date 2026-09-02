@@ -5,8 +5,8 @@
 // - `mat.theme()` couvre tout ce que Material 3 fournit : couleurs de role (--mat-sys-primary,
 //   surface, error, outline...), echelle typographique complete, rayons de bordure, elevations.
 //   Ces tokens ne sont jamais redefinis ici.
-// - `styles/tokens` (genere depuis web/tokens/) comble ce que Material n'a pas : les espacements
-//   et les couleurs semantiques succes / avertissement, en --app-*.
+// - `styles/tokens` comble ce que Material n'a pas : les espacements et les couleurs
+//   semantiques succes / avertissement, en --app-*.
 //
 // Documentation : https://material.angular.dev/guide/theming
 @use '@angular/material' as mat;
@@ -14,7 +14,7 @@
 // `ng generate @angular/material:theme-color` : ne jamais le modifier a la main, la
 // reproductibilite du schematic en depend.
 @use './styles/theme-colors';
-// Custom properties --app-*. Fichier genere par `pnpm tokens`.
+// Custom properties --app-*, maintenues a la main.
 @use './styles/tokens';
 
 html {
@@ -26,7 +26,7 @@ html {
   //
   // Pas de `theme-type` : le defaut `color-scheme` est ce qui fait emettre a Material chaque
   // --mat-sys-* sous forme light-dark(clair, sombre). C'est la convention que reprennent les
-  // --app-color-* du fichier genere.
+  // --app-color-* de `styles/tokens`.
   @include mat.theme(
     (
       color: (

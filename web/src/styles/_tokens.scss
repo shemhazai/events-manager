@@ -1,8 +1,14 @@
 /**
- * Do not edit directly, this file was auto-generated.
- * Clair  : tokens/app.tokens.json (export Figma, format DTCG)
- * Sombre : tokens/modes/dark.tokens.json
- * Regenerer : pnpm tokens
+ * Custom properties --app-*, maintenues a la main.
+ *
+ * Elles comblent ce que Material 3 ne fournit pas : echelle d'espacement et couleurs
+ * semantiques succes / avertissement. Ne jamais y redefinir un token que Material fournit
+ * deja.
+ *
+ * Les couleurs sont composees en light-dark(clair, sombre), meme convention que les
+ * --mat-sys-* emis par mat.theme(). light-dark() n'est valide qu'en contexte couleur : ne
+ * jamais l'employer sur un espacement, une custom property l'accepterait sans broncher et
+ * ne casserait qu'au point d'utilisation.
  */
 
 :root {
