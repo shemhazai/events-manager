@@ -7,6 +7,10 @@
     "angular-cli": {
       "command": "cmd",
       "args": ["/c", "pnpm", "dlx", "@angular/cli@latest", "mcp"]
+    },
+    "microsoft-learn": {
+      "type": "http",
+      "url": "https://learn.microsoft.com/api/mcp"
     }
   }
 }

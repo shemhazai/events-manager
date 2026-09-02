@@ -36,13 +36,14 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 - **InternalsVisibleTo** : toujours dans un fichier `InternalsVisible.cs` dédié à la racine du projet concerné, sous forme d'attribut d'assembly : `[assembly: InternalsVisibleTo("EventsManager.UnitTests")]`. Jamais via `<InternalsVisibleTo Include="...">` dans les csproj.
 - **Méthodes** : toujours en bloc `{ ... }`, jamais en expression body (`=>`), même pour les implémentations d'une ligne. La règle vise les **méthodes** uniquement, pas les propriétés : une propriété calculée à corps d'expression (ex. `DbSet<Event> Events => Set<Event>();`, idiome EF standard) est conforme et **ne doit pas être remontée en revue**.
 
-## Documentation à jour (MCP Context7)
+## Documentation à jour (MCP Context7 et Microsoft Learn)
 
-Context7 est configuré dans `.mcp.json` à la racine du repo (serveur MCP de scope projet). Avant de générer du code sur une librairie tierce, utilise-le pour récupérer la documentation versionnée à jour.
+Deux serveurs MCP de scope projet, déclarés dans `.mcp.json` à la racine et pré-approuvés dans `.claude/settings.json`. **Périmètres disjoints** : ne jamais interroger l'un sur le domaine de l'autre, une même question ne doit pas avoir deux sources.
 
-Librairies concernées : .NET 10, ASP.NET Core, EF Core 10, FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material.
+- **`microsoft-learn`** (HTTP, `https://learn.microsoft.com/api/mcp`, sans authentification) : tout l'écosystème Microsoft. .NET 10, ASP.NET Core, EF Core 10, SQL Server, outillage `dotnet`. Trois outils : `microsoft_docs_search` pour la recherche, `microsoft_code_sample_search` pour les exemples de code, `microsoft_docs_fetch` pour une page complète en markdown.
+- **`context7`** : les librairies tierces hors Microsoft. FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material, Vitest. Pour l'activer dans un prompt : ajoute `use context7` ou demande explicitement la doc de la librairie visée.
 
-Pour l'activer dans un prompt : ajoute `use context7` ou demande explicitement la doc de la librairie visée.
+**Règle d'usage, non négociable.** Toute affirmation sur une API ou une configuration Microsoft **qui ne casse pas au build** doit être adossée à la doc first-party avant d'être écrite : configuration d'ASP.NET Core et ordre du pipeline, conventions et comportements EF Core, spécificités SQL Server. Motif : le compilateur, les analyseurs et `/check` attrapent déjà la syntaxe et les signatures. L'angle mort qui reste est le code qui compile parfaitement et fait autre chose que prévu, et c'est exactement ce que ces serveurs couvrent. Un MCP disponible n'est pas un MCP utilisé : une réponse qui repose sur un souvenir de version est un défaut à signaler, pas un raccourci acceptable.
 
 ## Workflow de vérification
 
