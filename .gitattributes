@@ -1,0 +1,41 @@
+# Fins de ligne : une seule autorite pour tout le depot.
+#
+# Sans ce fichier, le comportement depend du core.autocrlf de chaque poste, qui
+# vient du gitconfig systeme pose par l'installeur Git. Resultat constate avant
+# sa mise en place : 116 fichiers stockes en LF et 29 en CRLF, selon que le
+# fichier venait de l'editeur ou d'un outil Windows (dotnet new, migrations EF
+# Core, scaffold Angular CLI).
+#
+# `.gitattributes` surcharge core.autocrlf pour tous les contributeurs, quelle
+# que soit leur machine : c'est la recommandation de GitHub.
+# https://docs.github.com/en/get-started/git-basics/configuring-git-to-handle-line-endings
+#
+# Regle de base : tout fichier detecte comme texte est stocke en LF dans le
+# depot, et converti en fin de ligne native au checkout (CRLF sur Windows).
+* text=auto
+
+# Fichiers dont l'outil qui les produit ecrit du LF. Sans eol=lf, chaque
+# execution de l'outil les reecrirait et salirait l'arbre de travail.
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+
+# Fichiers qui doivent garder CRLF meme hors Windows : un LF y casse
+# l'interpreteur. Aucun present aujourd'hui, la regle previent le cas.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Binaires : aucune conversion, jamais de diff textuel.
+*.ico   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.eot   binary
+*.pdf   binary
+*.xlsx  binary
