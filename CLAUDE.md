@@ -40,7 +40,7 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 
 Context7 est configuré dans `.mcp.json` à la racine du repo (serveur MCP de scope projet). Avant de générer du code sur une librairie tierce, utilise-le pour récupérer la documentation versionnée à jour.
 
-Librairies concernées : .NET 10, ASP.NET Core, EF Core 10, FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material, Style Dictionary.
+Librairies concernées : .NET 10, ASP.NET Core, EF Core 10, FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material.
 
 Pour l'activer dans un prompt : ajoute `use context7` ou demande explicitement la doc de la librairie visée.
 
