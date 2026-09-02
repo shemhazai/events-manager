@@ -18,6 +18,18 @@ public class EventTests
     }
 
     [Fact]
+    public void Event_ExposesASingleDate()
+    {
+        // EV-D1 : une seule date d'évènement, jamais une plage — l'agrégat n'expose
+        // qu'une seule propriété DateOnly, et c'est Date.
+        var dates = typeof(Event).GetProperties()
+                                 .Where(property => property.PropertyType == typeof(DateOnly))
+                                 .ToArray();
+
+        dates.Should().ContainSingle().Which.Name.Should().Be(nameof(Event.Date));
+    }
+
+    [Fact]
     public void Create_Trims_Name()
     {
         var @event = Event.Create("  Fête nationale  ", ValidDate, Today);

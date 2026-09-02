@@ -80,6 +80,21 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     }
 
     [Fact]
+    public async Task AddAsync_WithSameNameSurroundedByBlanks_ThrowsDbUpdateException()
+    {
+        // EV-U2 : la comparaison de noms d'EV-U1 s'applique après trim — « Souper » au
+        // 12/09/2026 puis «   Souper   » au 08/11/2026, même nom et même année civile :
+        // le second est rejeté.
+        var name = UniqueName("Souper");
+        await AddAsync(Event.Create(name, new DateOnly(2026, 9, 12), Today));
+
+        var duplicate = Event.Create($"   {name}   ", new DateOnly(2026, 11, 8), Today);
+        Func<Task> act = async () => await AddAsync(duplicate);
+
+        await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
     public async Task AddAsync_WithSameNameInDifferentYear_Succeeds()
     {
         // Le cas métier visé : l'édition annuelle (Saint-Nicolas 2026 puis 2027) garde le même nom.

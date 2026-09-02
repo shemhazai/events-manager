@@ -75,6 +75,29 @@ public class EventHandlersTests(SqlServerContainerFixture fixture)
     }
 
     [Fact]
+    public async Task HandleAsync_CreateWithUntrimmedName_StoresTheTrimmedName()
+    {
+        // EV-N2 : le trim est appliqué avant stockage — «   Fête   » est stocké « Fête ».
+        // Relu par un DbContext distinct : c'est bien la base qui rend le nom trimé.
+        var name = UniqueName("Fête");
+        Guid id;
+
+        await using (var writeContext = _fixture.CreateContext())
+        {
+            var createHandler = CreateCreateHandler(writeContext);
+            id = await createHandler.HandleAsync(
+                new CreateEventCommand($"   {name}   ", ValidDate),
+                TestContext.Current.CancellationToken);
+        }
+
+        await using var readContext = _fixture.CreateContext();
+        var getHandler = new GetEventQueryHandler(new EventRepository(readContext));
+        var dto = await getHandler.HandleAsync(new GetEventQuery(id), TestContext.Current.CancellationToken);
+
+        dto.Should().Be(new EventDto(id, name, ValidDate));
+    }
+
+    [Fact]
     public async Task GetHandleAsync_WithUnknownId_ReturnsNull()
     {
         await using var context = _fixture.CreateContext();
