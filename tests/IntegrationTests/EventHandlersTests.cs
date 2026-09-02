@@ -25,6 +25,7 @@ public class EventHandlersTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task HandleAsync_CreateThenGet_RoundtripsThroughRealDatabase()
     {
+        // EV-P2 : round-trip create → get via les vrais handlers ; EV-R1 : nom et date retournés.
         var name = UniqueName("Fête de la musique");
         Guid id;
 
@@ -100,6 +101,7 @@ public class EventHandlersTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task GetHandleAsync_WithUnknownId_ReturnsNull()
     {
+        // EV-R1 : id inconnu — not found.
         await using var context = _fixture.CreateContext();
         var getHandler = new GetEventQueryHandler(new EventRepository(context));
 
@@ -113,6 +115,7 @@ public class EventHandlersTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task CreateHandleAsync_WithInvalidCommand_PersistsNothingInDatabase()
     {
+        // EV-N3 + EV-P3 : nom de 101 caractères — rien n'est persisté en base.
         // 68 « a » + espace + Guid N (32) = 101 caractères : invalide (limite 100) et unique,
         // donc requêtable pour prouver que rien n'a été écrit.
         var name = $"{new string('a', Event.NameMaxLength - 32)} {Guid.CreateVersion7():N}";

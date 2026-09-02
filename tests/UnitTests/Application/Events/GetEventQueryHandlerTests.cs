@@ -19,6 +19,7 @@ public class GetEventQueryHandlerTests
     [Fact]
     public async Task HandleAsync_WithExistingEvent_ReturnsItsDto()
     {
+        // EV-R1 : lecture par id — l'évènement est retourné avec son nom et sa date.
         var @event = Event.Create("Fête nationale", ValidDate, Today);
         _repository.Events.Add(@event);
 
@@ -45,6 +46,7 @@ public class GetEventQueryHandlerTests
     [Fact]
     public async Task HandleAsync_WithUnknownId_ReturnsNull()
     {
+        // EV-R1 : id inconnu — not found.
         _repository.Events.Add(Event.Create("Fête nationale", ValidDate, Today));
 
         var dto = await _handler.HandleAsync(new GetEventQuery(Guid.CreateVersion7()), TestContext.Current.CancellationToken);

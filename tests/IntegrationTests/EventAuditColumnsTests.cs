@@ -19,6 +19,7 @@ public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task Insert_PopulatesAddedColumns_AndLeavesUpdatedColumnsNull()
     {
+        // EV-P1 : colonnes d'audit DB-only — Added* remplies à l'insertion, Updated* nulles.
         var @event = await AddEventAsync();
 
         var audit = await ReadAuditAsync(@event.Id);
@@ -32,6 +33,7 @@ public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task SqlUpdate_PopulatesUpdatedColumns_ViaTrigger()
     {
+        // EV-P1 : colonnes d'audit DB-only — Updated* remplies par le trigger AFTER UPDATE.
         var @event = await AddEventAsync();
         var newName = $"Renommé {Guid.CreateVersion7():N}";
 

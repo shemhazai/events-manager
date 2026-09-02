@@ -8,6 +8,7 @@ public class EventMappingsTests
     [Fact]
     public void ToDto_Maps_AllProperties()
     {
+        // EV-R1 : le contrat de lecture porte l'identifiant, le nom et la date de l'évènement.
         var @event = Event.Create("Fête nationale", new DateOnly(2026, 7, 14), new DateOnly(2026, 7, 13));
 
         var dto = @event.ToDto();

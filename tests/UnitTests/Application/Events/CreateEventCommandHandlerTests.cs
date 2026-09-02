@@ -36,6 +36,7 @@ public class CreateEventCommandHandlerTests
     [Fact]
     public async Task HandleAsync_WithInvalidCommand_ThrowsAndDoesNotPersist()
     {
+        // EV-N1 + EV-P3 (versant applicatif) : nom blanc — rien n'est persisté.
         var command = new CreateEventCommand("   ", ValidDate);
 
         Func<Task> act = () => _handler.HandleAsync(command, TestContext.Current.CancellationToken);
@@ -47,6 +48,7 @@ public class CreateEventCommandHandlerTests
     [Fact]
     public async Task HandleAsync_WithTodayDate_ThrowsAndDoesNotPersist()
     {
+        // EV-D2 + EV-P3 (versant applicatif) : date du jour — rien n'est persisté.
         var command = new CreateEventCommand("Fête nationale", Today);
 
         Func<Task> act = () => _handler.HandleAsync(command, TestContext.Current.CancellationToken);

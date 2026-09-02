@@ -21,6 +21,8 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task AddAsync_Then_GetByIdAsync_RoundtripsAggregate()
     {
+        // EV-P1 : conventions de persistance existantes — identifiant typé, nom et date
+        // relus intacts depuis SQL Server.
         var @event = Event.Create(UniqueName("Fête nationale"), ValidDate, Today);
         await AddAsync(@event);
 
@@ -69,6 +71,8 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task AddAsync_WithDuplicateNameAndYear_ThrowsDbUpdateException()
     {
+        // EV-U1 : deux évènements ne peuvent pas porter le même nom dans la même année
+        // civile ; EV-U4 : l'unicité est garantie jusqu'en base, sur SQL Server.
         var name = UniqueName("Marché de Noël");
         await AddAsync(Event.Create(name, ValidDate, Today));
 
@@ -97,6 +101,7 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task AddAsync_WithSameNameInDifferentYear_Succeeds()
     {
+        // EV-U1 : cas positif — le même nom dans une autre année civile est accepté.
         // Le cas métier visé : l'édition annuelle (Saint-Nicolas 2026 puis 2027) garde le même nom.
         var name = UniqueName("Saint-Nicolas");
         await AddAsync(Event.Create(name, ValidDate, Today));
@@ -115,6 +120,7 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task AddAsync_WithNameOfMaxLength_RoundtripsIntact()
     {
+        // EV-N3 : borne exacte — 100 caractères est la dernière longueur valide, jusqu'en base.
         // 67 « é » + espace + Guid N (32) = 100 caractères exactement : borne nvarchar(100)
         // et Unicode prouvés d'un coup, tout en restant unique.
         var name = $"{new string('é', Event.NameMaxLength - 33)} {Guid.CreateVersion7():N}";
