@@ -47,6 +47,7 @@ Deux serveurs MCP de scope projet, déclarés dans `.mcp.json` à la racine et p
 
 ## Workflow de vérification
 
+- **Toute nouvelle tranche commence par `/cadrage`**, avant tout plan et tout code. Si les critères d'acceptation de la tranche n'existent pas dans `docs/acceptance/`, le signaler et **s'arrêter là**. Motif : les valeurs attendues d'un test doivent venir d'une décision métier écrite avant le code. Écrites après, elles décrivent ce que le code fait et le valident contre lui-même.
 - Après toute modification de code : lancer `/check` et corriger jusqu'au vert **avant de s'arrêter**. **3 passes maximum**, jamais plus : la boucle exacte, les interdits anti-triche et le critère d'arrêt sont définis dans `.claude/commands/check.md`, s'y référer.
 - Pour toute tâche non triviale : proposer un **plan d'abord**, attendre validation, puis exécuter.
 

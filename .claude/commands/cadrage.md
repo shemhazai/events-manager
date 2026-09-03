@@ -1,11 +1,22 @@
 ---
 description: Ouvre une nouvelle tranche en produisant son oracle : questions de cadrage métier avec Cédric, puis délégation à acceptance-writer pour écrire docs/acceptance/<tranche>.md
+argument-hint: [la mission de la tranche, collée à la suite de la commande]
 ---
 
 # /cadrage
 
 > Première étape de toute nouvelle tranche, avant la première ligne de code.
 > Produit les critères d'acceptation par un dialogue, puis délègue leur rédaction.
+
+---
+
+## La mission
+
+$ARGUMENTS
+
+Si le bloc ci-dessus est vide, **demande la mission et arrête-toi là**. Ne la reconstitue ni depuis le roadmap, ni depuis l'état du dépôt.
+
+**Tu ne commences aucun travail d'implémentation à la lecture de cette mission.** C'est exactement pourquoi elle passe par cette commande plutôt que par un message libre : la lire déclenche un cadrage, jamais un plan ni du code. Même si elle décrit précisément quoi construire, tu ne construis rien dans ce tour.
 
 ---
 
@@ -28,7 +39,7 @@ Constaté sur la tranche `Event` : elle a vécu de la semaine 4 à la semaine 10
 
 ## Étape 1 : cadrer
 
-Demande, si ce n'est pas déjà dans la mission :
+Relis la mission ci-dessus et demande ce qu'elle ne dit pas :
 
 1. Le **nom de la tranche** et son préfixe d'identifiants, deux lettres majuscules (`OR` pour Order, `EV` pour Event). Le fichier cible sera `docs/acceptance/<tranche>.md`.
 2. Les **opérations couvertes** : création, lecture par id, liste, modification, suppression. Lesquelles sont exclues, et pourquoi.
