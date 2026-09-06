@@ -25,6 +25,7 @@ La demande te donne la tranche à reviewer (ex. "la tranche Event"). Cartographi
 - Invariants non contournables : constructeur privé + factory, pas de setter public, aucun chemin de création qui saute la validation. Pose-toi la question : "puis-je écrire du code qui crée un état invalide sans lever ?" Si oui, c'est bloquant.
 - IDs typés conformes au modèle EventId : readonly record struct, ctor privé, New() en UUIDv7, From(Guid) qui rejette Guid.Empty.
 - Horloge : TimeProvider fourni par l'appelant. Aucun DateTime.Now / DateTime.UtcNow / DateTime.Today dans Domain ou Application (vérifie par grep).
+- Si la tranche expose un chemin de **modification** : il passe par une méthode unique de la racine qui contrôle tous les invariants d'un bloc, jamais une méthode par champ, sinon des états intermédiaires invalides existent. L'année de la date d'un `Event` est immuable (critère EV-M2) : c'est elle qui rend l'unicité (nom, année civile) incassable par une modification, donc une modification qui laisse l'année bouger est **bloquant**, pas une suggestion.
 
 **Application**
 - Mappers : méthodes d'extension, transport bête, zéro logique (pas de condition métier, pas de calcul, pas de valeur par défaut décidée là), et testés.
@@ -51,7 +52,6 @@ La demande te donne la tranche à reviewer (ex. "la tranche Event"). Cartographi
 Ces points ont été tranchés en connaissance de cause, les remonter est du bruit :
 - Pas de gestion de concurrence (RowVersion retiré volontairement) : back-office mono-utilisateur.
 - Audit : les DELETE ne sont pas tracés ; SUSER_SNAME() donnera le compte technique de l'app en prod.
-- Unicité Event (nom, année civile) : le report d'un événement qui change d'année civile est un cas limite connu et accepté.
 - Historique des migrations non squashé (valeur pédagogique du trail de décisions).
 
 ## Format du rapport
