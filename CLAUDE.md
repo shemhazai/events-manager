@@ -38,7 +38,7 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 
 ## Documentation à jour (MCP Context7 et Microsoft Learn)
 
-Deux serveurs MCP de scope projet, déclarés dans `.mcp.json` à la racine et pré-approuvés dans `.claude/settings.json`. **Périmètres disjoints** : ne jamais interroger l'un sur le domaine de l'autre, une même question ne doit pas avoir deux sources.
+Deux serveurs MCP de documentation, déclarés dans `.mcp.json` à la racine à côté du serveur d'outillage `angular-cli`, et pré-approuvés dans `.claude/settings.json`. **Périmètres disjoints** : ne jamais interroger l'un sur le domaine de l'autre, une même question ne doit pas avoir deux sources.
 
 - **`microsoft-learn`** (HTTP, `https://learn.microsoft.com/api/mcp`, sans authentification) : tout l'écosystème Microsoft. .NET 10, ASP.NET Core, EF Core 10, SQL Server, outillage `dotnet`. Trois outils : `microsoft_docs_search` pour la recherche, `microsoft_code_sample_search` pour les exemples de code, `microsoft_docs_fetch` pour une page complète en markdown.
 - **`context7`** : les librairies tierces hors Microsoft. FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material, Vitest. Pour l'activer dans un prompt : ajoute `use context7` ou demande explicitement la doc de la librairie visée.
@@ -78,20 +78,23 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
 /
   CLAUDE.md
   global.json         # pin du SDK .NET 10
-  .mcp.json           # serveurs MCP de scope projet (Context7, angular-cli)
+  .mcp.json           # serveurs MCP de scope projet (Context7, angular-cli, Microsoft Learn)
   events-manager.slnx # solution à la racine
   .claude/
-    commands/         # /check, /slice, ...
-    agents/           # reviewer, test-writer, ...
+    commands/         # /check, /cadrage
+    agents/           # reviewer, test-writer, acceptance-writer
+    skills/           # design-ui
     launch.json       # serveur de dev front (prévisualisation), cible `web`
+    settings.json     # permissions, MCP pré-approuvés, attribution
   docs/
     acceptance/       # critères d'acceptation par tranche (source du test-writer)
+    harnais.html      # schéma du harnais agentic, à tenir à jour à chaque évolution
   src/                # projets .NET uniquement
     Api/
     Application/
     Domain/
     Infrastructure/
-  web/                # app Angular (semaine 8), avec son propre CLAUDE.md
+  web/                # app Angular, avec son propre CLAUDE.md
   tests/
     UnitTests/
     IntegrationTests/
