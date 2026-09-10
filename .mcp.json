@@ -2,11 +2,11 @@
   "mcpServers": {
     "context7": {
       "command": "cmd",
-      "args": ["/c", "pnpm", "dlx", "@upstash/context7-mcp@latest"]
+      "args": ["/c", "pnpm", "dlx", "@upstash/context7-mcp@4.0.5"]
     },
     "angular-cli": {
       "command": "cmd",
-      "args": ["/c", "pnpm", "dlx", "@angular/cli@latest", "mcp"]
+      "args": ["/c", "pnpm", "dlx", "@angular/cli@22.1.7", "mcp"]
     },
     "microsoft-learn": {
       "type": "http",
