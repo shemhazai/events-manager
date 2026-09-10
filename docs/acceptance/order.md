@@ -1,4 +1,4 @@
-# Critères d'acceptation : tranche Order (semaine 7)
+# Critères d'acceptation : tranche Order (semaine 7, identité revue le 2026-09-07)
 
 > Source de vérité du test-writer. La valeur attendue d'un test vient d'ici,
 > jamais de l'implémentation.
@@ -6,10 +6,16 @@
 ## Périmètre
 
 - Use cases : création d'une commande, lecture par id, liste des commandes d'un événement
-- Hors périmètre (différé) : modification, annulation, catalogue de produits par
-  événement, numéro de commande lisible, référence de paiement ISO 11649
-- Les lignes sont des snapshots : libellé et prix saisis librement, figés à la
-  création. Aucune référence à un catalogue
+- Hors périmètre (différé) : modification, annulation, catalogue de viandes
+  (semaine 10bis), numéro de commande lisible, référence de paiement
+- Les critères marqués **(10bis/11)** portent sur des décisions du 2026-09-07 pas
+  encore implémentées ; les autres décrivent la tranche livrée en semaine 7
+- Référence de paiement : ce sera une communication structurée belge (OGM/VCS,
+  12 chiffres, contrôle mod 97), attribuée à la validation, unique par événement,
+  traitée en semaine 14. ISO 11649 (RF) est écartée (décision du 2026-09-07)
+- Les lignes sont des snapshots : libellé et prix figés à la création. La tranche
+  livrée les saisit librement ; le catalogue de viandes (semaine 10bis) les
+  pré-remplira sans changer leur nature de snapshot
 - Une gratuité ne s'encode pas dans une commande : tout montant est strictement positif
 
 ## Money (Value Object)
@@ -31,10 +37,15 @@
 
 - OR-C1 : une commande référence un événement existant. Création vers un événement
   inconnu : rejetée, rien n'est persisté
-- OR-C2 : nom du client obligatoire, trim appliqué, non vide, 100 caractères maximum
+- OR-C2 **(10bis/11)** : identité de la commande. Nom **et** prénom de l'enfant,
+  deux champs distincts, chacun obligatoire, trim appliqué, non vide, 100
+  caractères maximum chacun. Sémantique scolaire : sert à distribuer les commandes
+  en classe. Remplace le « nom du client » unique de la semaine 7 (décision du
+  2026-09-07). Modifie l'entité, le DTO, le validator, les tests OR-* et la
+  migration ; à faire avant l'exposition HTTP de `Order`
 - OR-C3 : au moins 1 ligne. Pas de plafond numérique : la borne naturelle viendra
-  du catalogue de produits par événement (tranche future), les doublons interdits
-  (OR-C4) limitant déjà les lignes à des libellés distincts
+  du catalogue de viandes (semaine 10bis), les doublons interdits (OR-C4)
+  limitant déjà les lignes à des libellés distincts
 - OR-C4 : deux lignes de même libellé (après trim, insensible à la casse) sont
   interdites dans une même commande
 - OR-C5 : total = somme des sous-totaux des lignes. Le total n'est ni saisi ni
@@ -51,7 +62,7 @@
   Id inconnu : not found (même comportement que GetEvent)
 - OR-R2 : liste des commandes d'un événement : retourne les commandes de cet
   événement uniquement (à prouver avec plusieurs événements persistés simultanément),
-  en résumé (id, nom du client, total), ordonnées par ordre de création
+  en résumé (id, identité selon OR-C2, total), ordonnées par ordre de création
 - OR-R3 : événement existant sans commandes : liste vide. Événement inconnu : not found
 
 ## Persistance
