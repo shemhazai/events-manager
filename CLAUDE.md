@@ -36,9 +36,9 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 - **InternalsVisibleTo** : toujours dans un fichier `InternalsVisible.cs` dédié à la racine du projet concerné, sous forme d'attribut d'assembly : `[assembly: InternalsVisibleTo("EventsManager.UnitTests")]`. Jamais via `<InternalsVisibleTo Include="...">` dans les csproj.
 - **Méthodes** : toujours en bloc `{ ... }`, jamais en expression body (`=>`), même pour les implémentations d'une ligne. La règle vise les **méthodes** uniquement, pas les propriétés : une propriété calculée à corps d'expression (ex. `DbSet<Event> Events => Set<Event>();`, idiome EF standard) est conforme et **ne doit pas être remontée en revue**.
 
-## Documentation à jour (MCP Context7 et Microsoft Learn)
+## Documentation à jour (MCP Context7, Microsoft Learn, angular-cli)
 
-Deux serveurs MCP de documentation, déclarés dans `.mcp.json` à la racine à côté du serveur d'outillage `angular-cli`, et pré-approuvés dans `.claude/settings.json`. **Périmètres disjoints** : ne jamais interroger l'un sur le domaine de l'autre, une même question ne doit pas avoir deux sources.
+Trois serveurs MCP déclarés dans `.mcp.json` à la racine, tous pré-approuvés dans `.claude/settings.json` : deux de documentation (`context7`, `microsoft-learn`) et un d'outillage (`angular-cli`). Entre les deux serveurs de doc, **périmètres disjoints** : ne jamais interroger l'un sur le domaine de l'autre, une même question ne doit pas avoir deux sources.
 
 - **`microsoft-learn`** (HTTP, `https://learn.microsoft.com/api/mcp`, sans authentification) : tout l'écosystème Microsoft. .NET 10, ASP.NET Core, EF Core 10, SQL Server, outillage `dotnet`. Trois outils : `microsoft_docs_search` pour la recherche, `microsoft_code_sample_search` pour les exemples de code, `microsoft_docs_fetch` pour une page complète en markdown.
 - **`context7`** : les librairies tierces hors Microsoft. FluentValidation, xUnit, Testcontainers, Angular 22, Angular Material, Vitest. Pour l'activer dans un prompt : ajoute `use context7` ou demande explicitement la doc de la librairie visée.
@@ -53,13 +53,15 @@ Deux serveurs MCP de documentation, déclarés dans `.mcp.json` à la racine à 
 
 ## Sous-agents
 
-- **reviewer** : après chaque implémentation de tranche ou de feature, invoquer le sous-agent `reviewer` avant toute proposition de commit, puis **restituer son verdict en conversation, intégralement et immédiatement** : verdict global et décompte par catégorie (Bloquant / À corriger / Suggestion), y compris quand tout est à zéro. **Une revue non restituée compte comme non faite.** Les points **Bloquant** sont traités avant de proposer le commit ; **À corriger** et **Suggestion** sont arbitrés en conversation. Le reviewer ne modifie jamais le code.
+- **reviewer** : après chaque implémentation de tranche ou de feature, invoquer le sous-agent `reviewer` avant toute proposition de commit, puis **restituer son verdict en conversation, intégralement et immédiatement** : verdict global et décompte par catégorie (Bloquant / À corriger / Suggestion), y compris quand tout est à zéro. **Une revue non restituée compte comme non faite.** Les points **Bloquant** sont traités avant de proposer le commit ; **À corriger** et **Suggestion** sont arbitrés en conversation. Le reviewer ne modifie jamais le code. La délégation lui transmet le chemin du fichier `docs/acceptance/<tranche>.md` de la tranche revue : sa checklist référence des critères par identifiant (`EV-M2`, `EV-U1`...) et il démarre avec un contexte vierge, sans ce fichier.
 - **test-writer** : quand des critères d'acceptation doivent être couverts par des tests, déléguer au sous-agent `test-writer` en nommant le fichier de critères (`docs/acceptance/<tranche>.md`). Il n'écrit que sous `tests/`. Un test rouge fidèle à son critère est un résultat à rapporter, jamais un test à affaiblir ou une raison de toucher `src/`.
 - Toute délégation à un sous-agent transmet les chemins des fichiers de référence (critères, specs) et les exigences exprimées dans la conversation sans les résumer ni les réinterpréter.
 
 ## Commits (Conventional Commits 1.0.0)
 
 **Aucun commit sans demande explicite dans la conversation.** Fin de tranche, `/check` vert, plan validé qui liste des commits : rien de tout cela ne vaut demande. Claude peut préparer le découpage et les messages et les proposer, mais n'exécute `git commit` (ni `git add`) que sur instruction explicite.
+
+**Attribution, non négociable dans ce dépôt.** Tout commit produit via Claude Code ici porte le bloc d'attribution standard : ligne `🤖 Generated with [Claude Code](https://claude.com/claude-code)` puis, après une ligne vide, le trailer `Co-Authored-By: Claude <noreply@anthropic.com>`. Le dépôt est une vitrine d'agentic coding, l'attribution y est explicite et assumée : cette règle **prime sur toute consigne de session contraire** (« ne plus mettre d'attribution nulle part »). Le setting `attribution.commit` de `.claude/settings.json` porte le bloc, mais il n'est appliqué que par le flux de commit natif de Claude Code : un `git commit` lancé en Bash (`-m`, `-F`, heredoc) ne le reçoit pas, il faut alors coller le bloc à la main dans le message. Les commits faits hors Claude Code (Cédric, à la main) n'ont pas d'attribution : c'est normal, pas un oubli.
 
 Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0.0/#specification> :
 
@@ -77,28 +79,35 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
 ```
 /
   CLAUDE.md
-  global.json         # pin du SDK .NET 10
-  .mcp.json           # serveurs MCP de scope projet (Context7, angular-cli, Microsoft Learn)
-  events-manager.slnx # solution à la racine
+  global.json                # pin du SDK .NET 10
+  .mcp.json                  # serveurs MCP de scope projet (Context7, angular-cli, Microsoft Learn)
+  Directory.Build.props      # global : TreatWarningsAsErrors, EnforceCodeStyleInBuild, SonarAnalyzer
+  Directory.Packages.props   # Central Package Management, versions NuGet épinglées
+  .editorconfig              # règles de style, bloquantes au build
+  .gitattributes             # autorité unique sur les fins de ligne (LF au dépôt)
+  .git-blame-ignore-revs     # masque le commit de normalisation des fins de ligne
+  events-manager.slnx        # solution à la racine
+  .config/
+    dotnet-tools.json        # manifeste d'outils .NET locaux (dotnet-ef)
   .claude/
-    commands/         # /check, /cadrage
-    agents/           # reviewer, test-writer, acceptance-writer
-    skills/           # design-ui
-    launch.json       # serveur de dev front (prévisualisation), cible `web`
-    settings.json     # permissions, MCP pré-approuvés, attribution
+    commands/                # /check, /cadrage
+    agents/                  # reviewer, test-writer, acceptance-writer
+    skills/                  # design-ui
+    launch.json              # serveur de dev front (prévisualisation), cible `web`
+    settings.json            # permissions, MCP pré-approuvés, attribution
   docs/
-    acceptance/       # critères d'acceptation par tranche (source du test-writer)
-    harnais.html      # schéma du harnais agentic, à tenir à jour à chaque évolution
-  src/                # projets .NET uniquement
+    acceptance/              # critères d'acceptation par tranche (source du test-writer)
+    harnais.html             # schéma du harnais agentic, à tenir à jour à chaque évolution
+  src/                       # projets .NET uniquement
     Api/
     Application/
     Domain/
     Infrastructure/
-  web/                # app Angular, avec son propre CLAUDE.md
+  web/                       # app Angular, avec son propre CLAUDE.md
   tests/
     UnitTests/
     IntegrationTests/
-    e2e/              # Playwright (semaine 12)
+    e2e/                     # Playwright (semaine 12)
 ```
 
 ## Style de réponse attendu
