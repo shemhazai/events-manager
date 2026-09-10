@@ -9,6 +9,7 @@
       "Bash(git restore --staged *)",
       "Bash(ng *)",
       "Bash(pnpm *)",
+      "Edit(/docs/**)",
       "Edit(/src/**)",
       "Edit(/tests/**)",
       "Edit(/web/**)",
@@ -21,7 +22,6 @@
       "PowerShell(ng *)",
       "PowerShell(pnpm *)",
       "Skill(check)",
-      "Skill(check:*)",
       "WebSearch"
     ]
   },

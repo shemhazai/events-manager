@@ -1,6 +1,6 @@
 ---
 description: Boucle de vérification par zones (dotnet, web) — build, tests, format jusqu'au vert (3 passes max, garde-fous anti-triche)
-allowed-tools: Bash(dotnet build:*), Bash(dotnet test:*), Bash(dotnet format:*), Bash(pnpm -C web install:*), Bash(pnpm -C web run build:*), Bash(pnpm -C web test:*), Bash(git status:*), Bash(git diff:*), Read, Grep, Edit(src/**), Edit(tests/**), Edit(web/**)
+allowed-tools: Bash(dotnet build *), Bash(dotnet test *), Bash(dotnet format *), Bash(pnpm -C web install *), Bash(pnpm -C web run build *), Bash(pnpm -C web test *), Bash(git status *), Bash(git diff *), Read, Grep, Edit(/src/**), Edit(/tests/**), Edit(/web/**)
 ---
 
 # /check
