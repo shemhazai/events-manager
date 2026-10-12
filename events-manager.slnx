@@ -11,6 +11,7 @@
     <Project Path="src/Infrastructure/EventsManager.Infrastructure.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/ApiTests/EventsManager.ApiTests.csproj" />
     <Project Path="tests/IntegrationTests/EventsManager.IntegrationTests.csproj" />
     <Project Path="tests/UnitTests/EventsManager.UnitTests.csproj" />
   </Folder>
