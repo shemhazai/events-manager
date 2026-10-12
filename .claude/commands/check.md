@@ -16,6 +16,7 @@ allowed-tools: Bash(dotnet build *), Bash(dotnet test *), Bash(dotnet format *),
 2. Liste vide (arbre propre, ex. /check juste après un commit) : reprendre les fichiers du
    dernier commit — `git diff --name-only HEAD~1..HEAD`.
 3. Classement, dans cet ordre (la première règle qui matche gagne) :
+   - `docs/openapi.json` → zone **dotnet**, et cette ligne passe **avant** la règle neutre : le document est généré par le build, une retouche à la main y est exactement ce que l'étape 1bis doit attraper. Le classer neutre rendrait le garde-fou inatteignable sur le seul cas qui le motive ;
    - neutres (ne déclenchent rien à eux seuls) : `**/*.md`, `docs/**`, `.claude/**`, `.mcp.json`, `.gitignore` ;
    - `web/**` → zone **web** ;
    - `src/**`, `tests/**`, `events-manager.slnx`, `global.json`, `Directory.Build.props`,
@@ -47,8 +48,14 @@ Une passe = toutes les étapes de toutes les zones actives, dans l'ordre : boucl
 
    Si l'échec n'est pas une erreur de compilation/style/Sonar mais un problème d'environnement (SDK introuvable, résolution de packages, etc.), ne tente pas 3 passes de correction de code : documente-le immédiatement via le critère d'arrêt, une seule tentative de diagnostic suffit.
 
+1bis. **OpenAPI à jour** : `git diff HEAD --exit-code -- docs/openapi.json`
+   `docs/openapi.json` est généré au build par `Microsoft.Extensions.ApiDescription.Server` et versionné (cf. `docs/api-conventions.md`, section 7). Un diff signale l'une de deux choses, et tu dois lire le diff pour savoir laquelle : la surface d'API a changé et le document régénéré n'a pas été commité, **ou** quelqu'un a édité le document à la main. Dans les deux cas, rouge.
+   Le `HEAD` n'est pas optionnel : sans lui, un document régénéré puis `git add`é passerait au vert sans jamais être comparé au dernier commit.
+   Correction, la même dans les deux cas : `dotnet build src/Api/EventsManager.Api.csproj --no-incremental`, puis committer le fichier régénéré. **Jamais de retouche à la main.**
+   **Le `--no-incremental` n'est pas décoratif** : la cible de génération est incrémentale, un build où rien n'a bougé dans `src/Api` la court-circuite, et une édition manuelle survit alors au build ordinaire de l'étape 1. Ne conclus donc jamais « le build vient de le régénérer, donc il est à jour » — c'est faux, et c'est exactement le trou que cette étape bouche. Même discipline que `web/src/styles/_theme-colors.scss` en semaine 9.
+
 2. **Tests** : `dotnet test --solution events-manager.slnx`
-   Le runner MTP (contrairement à `dotnet build`/`dotnet format`) n'accepte pas de chemin positionnel : `--solution` est obligatoire. Runner Microsoft Testing Platform (xUnit v3), configuré via `global.json` (`test.runner`). Projets `tests/UnitTests/EventsManager.UnitTests.csproj` et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` — ce dernier utilise Testcontainers : **Docker doit être actif**, sinon c'est un problème d'environnement (critère d'arrêt immédiat, pas 3 passes). Si un test échoue, corrige la cause réelle : dans l'immense majorité des cas c'est un bug dans le code de production, pas dans le test.
+   Le runner MTP (contrairement à `dotnet build`/`dotnet format`) n'accepte pas de chemin positionnel : `--solution` est obligatoire. Runner Microsoft Testing Platform (xUnit v3), configuré via `global.json` (`test.runner`). Trois projets : `tests/UnitTests/EventsManager.UnitTests.csproj`, `tests/ApiTests/EventsManager.ApiTests.csproj` (pipeline HTTP via `WebApplicationFactory`, **sans Docker**) et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` — ce dernier utilise Testcontainers : **Docker doit être actif**, sinon c'est un problème d'environnement (critère d'arrêt immédiat, pas 3 passes). Si un test échoue, corrige la cause réelle : dans l'immense majorité des cas c'est un bug dans le code de production, pas dans le test.
 
 3. **Format** : `dotnet format events-manager.slnx --verify-no-changes`
    Si des changements sont signalés, applique `dotnet format events-manager.slnx` puis relis le diff. À ce stade le build est déjà vert, donc `EnforceCodeStyleInBuild` a déjà éliminé l'essentiel des soucis de style : ce qui reste ici est en principe de la pure mise en forme (indentation, espaces, retours à la ligne). Si le diff touche autre chose qu'un layout (réordonnancement de `using`, changement d'expression), vérifie que le comportement est inchangé avant de continuer.
@@ -158,7 +165,7 @@ Reste factuel et court. Pas de "tout est parfait !".
 
 ## Notes
 
-- Solution : `events-manager.slnx` à la racine du repo. Projets de tests : `tests/UnitTests/EventsManager.UnitTests.csproj` (unitaires) et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` (intégration, Testcontainers SQL Server → Docker actif requis).
+- Solution : `events-manager.slnx` à la racine du repo. Projets de tests : `tests/UnitTests/EventsManager.UnitTests.csproj` (unitaires), `tests/ApiTests/EventsManager.ApiTests.csproj` (pipeline HTTP réel via `WebApplicationFactory` — chaîne de connexion factice, aucune connexion ouverte au démarrage, **pas de Docker**) et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` (intégration, Testcontainers SQL Server → Docker actif requis).
 - Front : workspace Angular `events-manager-web` sous `web/` (runner de tests Vitest du scaffold, builder `@angular/build:unit-test`). Les commandes de la boucle web ciblent `web/` via `pnpm -C web`, depuis la racine du repo.
 - Pas de commit à la fin de `/check`. C'est une boucle de vérification locale, pas un workflow de publication.
 - `/check` part du principe que le seul but légitime est de faire dire la vérité au code, jamais de faire taire les outils qui la disent.
