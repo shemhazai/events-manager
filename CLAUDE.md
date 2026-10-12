@@ -49,10 +49,13 @@ Trois serveurs MCP déclarés dans `.mcp.json` à la racine, tous pré-approuvé
 
 - **Toute nouvelle tranche commence par `/cadrage`**, avant tout plan et tout code. Si les critères d'acceptation de la tranche n'existent pas dans `docs/acceptance/`, le signaler et **s'arrêter là**. Motif : les valeurs attendues d'un test doivent venir d'une décision métier écrite avant le code. Écrites après, elles décrivent ce que le code fait et le valident contre lui-même.
 - Après toute modification de code : lancer `/check` et corriger jusqu'au vert **avant de s'arrêter**. **3 passes maximum**, jamais plus : la boucle exacte, les interdits anti-triche et le critère d'arrêt sont définis dans `.claude/commands/check.md`, s'y référer.
+- **Ordre de vérification, de bout en bout** : `/check` vert → `zalando-reviewer` (seulement si la surface d'API a changé) → `reviewer` → proposition de commit. Chaque étape suppose la précédente verte ; aucune ne se saute, aucune ne s'inverse.
+- Les conventions de la surface HTTP (URL, codes de statut, format d'erreur, sérialisation JSON, pagination) vivent dans `docs/api-conventions.md`, pas ici. Toute décision qui touche à la forme de l'API s'y écrit **avant** d'être codée, et les règles Zalando écartées y restent listées avec leur motif.
 - Pour toute tâche non triviale : proposer un **plan d'abord**, attendre validation, puis exécuter.
 
 ## Sous-agents
 
+- **zalando-reviewer** : vérificateur de conformité de la surface HTTP au référentiel `docs/api-conventions.md` (sous-ensemble Zalando adopté). **Ordre non négociable : après `/check` vert, avant `reviewer`.** Motif : il vérifie un contrat externe sur du code déjà compilé et testé, et ce qu'il remonte peut changer la forme des endpoints que le `reviewer` relira ensuite. Invoqué **uniquement quand la surface d'API a changé** — un fichier touché sous `src/Api/**` ou un `*Dto.cs` de `src/Application/**`. Lecture seule, ne modifie jamais le code. La délégation lui transmet le chemin de `docs/api-conventions.md` : sa checklist cite des sections par identifiant (`§2.1`, `§4.6`…) et il démarre avec un contexte vierge, sans ce fichier. **Verdict restitué en conversation, intégralement et immédiatement**, verdict global et décompte par catégorie compris, y compris quand tout est à zéro — même régime que le `reviewer` : une revue non restituée compte comme non faite.
 - **reviewer** : après chaque implémentation de tranche ou de feature, invoquer le sous-agent `reviewer` avant toute proposition de commit, puis **restituer son verdict en conversation, intégralement et immédiatement** : verdict global et décompte par catégorie (Bloquant / À corriger / Suggestion), y compris quand tout est à zéro. **Une revue non restituée compte comme non faite.** Les points **Bloquant** sont traités avant de proposer le commit ; **À corriger** et **Suggestion** sont arbitrés en conversation. Le reviewer ne modifie jamais le code. La délégation lui transmet le chemin du fichier `docs/acceptance/<tranche>.md` de la tranche revue : sa checklist référence des critères par identifiant (`EV-M2`, `EV-U1`...) et il démarre avec un contexte vierge, sans ce fichier.
 - **test-writer** : quand des critères d'acceptation doivent être couverts par des tests, déléguer au sous-agent `test-writer` en nommant le fichier de critères (`docs/acceptance/<tranche>.md`). Il n'écrit que sous `tests/`. Un test rouge fidèle à son critère est un résultat à rapporter, jamais un test à affaiblir ou une raison de toucher `src/`.
 - Toute délégation à un sous-agent transmet les chemins des fichiers de référence (critères, specs) et les exigences exprimées dans la conversation sans les résumer ni les réinterpréter.
@@ -95,12 +98,14 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
     dotnet-tools.json        # manifeste d'outils .NET locaux (dotnet-ef)
   .claude/
     commands/                # /check, /cadrage
-    agents/                  # reviewer, test-writer, acceptance-writer
+    agents/                  # reviewer, zalando-reviewer, test-writer, acceptance-writer
     skills/                  # design-ui
     launch.json              # serveur de dev front (prévisualisation), cible `web`
     settings.json            # permissions, MCP pré-approuvés, attribution
   docs/
     acceptance/              # critères d'acceptation par tranche (source du test-writer)
+    api-conventions.md       # conventions HTTP, sous-ensemble Zalando (oracle du zalando-reviewer)
+    openapi.json             # GÉNÉRÉ au build et versionné, ne jamais éditer à la main
     harnais.html             # schéma du harnais agentic, à tenir à jour à chaque évolution
   src/                       # projets .NET uniquement
     Api/
@@ -110,6 +115,7 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
   web/                       # app Angular, avec son propre CLAUDE.md
   tests/
     UnitTests/
+    ApiTests/                # pipeline HTTP via WebApplicationFactory, sans Docker
     IntegrationTests/
     e2e/                     # Playwright (semaine 12)
 ```
