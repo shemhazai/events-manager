@@ -36,6 +36,12 @@ namespace EventsManager.Infrastructure.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<DateOnly?>("OrderWindowEndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("OrderWindowStartDate")
+                        .HasColumnType("date");
+
                     b.Property<int>("Year")
                         .ValueGeneratedOnAddOrUpdate()
                         .HasColumnType("int")
@@ -51,6 +57,10 @@ namespace EventsManager.Infrastructure.Migrations
                     b.ToTable("Events", "app", t =>
                         {
                             t.HasTrigger("TR_Events_Update_Audit");
+
+                            t.HasCheckConstraint("CK_Events_OrderWindow_BothOrNeither", "([OrderWindowStartDate] IS NULL AND [OrderWindowEndDate] IS NULL) OR ([OrderWindowStartDate] IS NOT NULL AND [OrderWindowEndDate] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Events_OrderWindow_Order", "[OrderWindowStartDate] IS NULL OR ([OrderWindowStartDate] <= [OrderWindowEndDate] AND [OrderWindowEndDate] <= [Date])");
                         });
 
                     b.HasAnnotation("SqlServer:UseSqlOutputClause", false);

@@ -16,10 +16,28 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
 {
     public void Configure(EntityTypeBuilder<Event> builder)
     {
-        // HasTrigger obligatoire : depuis EF Core 7, SaveChanges utilise une clause OUTPUT
-        // sans INTO, que SQL Server refuse sur une table portant un trigger. Déclarer le
-        // trigger fait basculer EF sur la stratégie compatible.
-        builder.ToTable("Events", table => table.HasTrigger("TR_Events_Update_Audit"));
+        builder.ToTable("Events", table =>
+        {
+            // HasTrigger obligatoire : depuis EF Core 7, SaveChanges utilise une clause OUTPUT
+            // sans INTO, que SQL Server refuse sur une table portant un trigger. Déclarer le
+            // trigger fait basculer EF sur la stratégie compatible.
+            table.HasTrigger("TR_Events_Update_Audit");
+
+            // Fenêtre de commande : les mêmes invariants que ceux d'Event.Create, mais garantis
+            // côté SQL Server. Ce n'est pas un doublon décoratif — la donnée n'entre pas
+            // toujours par le domaine : les scripts de db/seed/ écrivent en SQL direct, et
+            // c'est précisément le chemin dont une faute de frappe produirait un état
+            // incohérent. Les deux gardes visent deux écrivains différents.
+            table.HasCheckConstraint(
+                "CK_Events_OrderWindow_BothOrNeither",
+                "([OrderWindowStartDate] IS NULL AND [OrderWindowEndDate] IS NULL) "
+                + "OR ([OrderWindowStartDate] IS NOT NULL AND [OrderWindowEndDate] IS NOT NULL)");
+
+            table.HasCheckConstraint(
+                "CK_Events_OrderWindow_Order",
+                "[OrderWindowStartDate] IS NULL "
+                + "OR ([OrderWindowStartDate] <= [OrderWindowEndDate] AND [OrderWindowEndDate] <= [Date])");
+        });
 
         builder.HasKey(e => e.Id);
 
@@ -38,5 +56,15 @@ internal sealed class EventConfiguration : IEntityTypeConfiguration<Event>
         builder.HasIndex("Name", "Year").IsUnique();
 
         builder.HasIndex(e => e.Date); // le tri chronologique métier est porté par Date
+
+        // Déclaration explicite requise : une auto-propriété get-only n'est pas découverte par
+        // convention, et le binding par constructeur exige que chaque paramètre corresponde à
+        // une propriété mappée. DateOnly? → date NULL, mapping natif SQL Server.
+        // Pas d'index sur ces deux colonnes : la table est bornée à quelques dizaines de lignes,
+        // et un index composite ne sert pas un prédicat d'encadrement (début <= @jour <= fin),
+        // dont seule la colonne de tête serait exploitable. La question redeviendra réelle avec
+        // la contrainte de non-chevauchement des fenêtres (hors de cette tranche).
+        builder.Property(e => e.OrderWindowStartDate);
+        builder.Property(e => e.OrderWindowEndDate);
     }
 }
