@@ -29,6 +29,13 @@ d'apprentissage de l'agentic coding : maîtriser l'agentic est le but, l'appli e
 - DDD tactique léger : `Money`, `EmailAddress`, IDs typés (`EventId`, `OrderId`) ; agrégats `Event` et `Order` avec invariants garantis dans la racine d'agrégat. Pas de DDD stratégique, pas de bus de domain events.
 - **IDs typés** : `readonly record struct` calqué sur `EventId` (`src/Domain/Events/EventId.cs`) — ctor privé, `New()` → `Guid.CreateVersion7()` (UUIDv7), `From(Guid)` qui rejette `Guid.Empty`. Pas d'UUIDv8/UUIDNext, pas de génération côté DB. Le tri chronologique côté SQL Server est porté par une colonne dédiée (ex. `Date` pour `Event`), jamais par l'ID (`uniqueidentifier` trie par les 6 derniers octets → un UUIDv7 n'y est pas trié).
 - **Colonnes d'audit DB-only** : chaque table porte `AddedBy`, `AddedDate`, `UpdatedBy`, `UpdatedDate` (UTC), invisibles du code — ni Domain, ni modèle EF, pas même en shadow property. `Added*` = contraintes DEFAULT (`SUSER_SNAME()`, `SYSUTCDATETIME()`) ; `Updated*` = trigger `AFTER UPDATE`. Pour chaque nouvelle table : compléter la migration à la main (colonnes + trigger, réf. migration `EventsAudit`) et déclarer le trigger via `HasTrigger` dans la config fluent — sans quoi `SaveChanges` échoue (OUTPUT sans INTO interdit sur une table à trigger).
+- **Données de démonstration : jamais dans une migration.** Un script d'insertion vit dans
+  `db/seed/`, en SQL, et s'applique **à la main**. Motif : les tests d'intégration migrent la base
+  du conteneur avec les migrations réelles (`MigrateAsync`), donc toute donnée posée par une
+  migration apparaîtrait dans la base de tous les tests et pourrait fausser leurs attendus. Un
+  script de seed est idempotent (`IF NOT EXISTS`), porte ses identifiants en littéral au format
+  UUIDv7 (jamais `NEWID()`, qui produirait un v4 et changerait à chaque exécution) et ne mentionne
+  jamais les colonnes d'audit.
 - **Frontière Api ↔ Domain** : l'Api ne référence jamais un type Domain (verrouillé par test d'architecture NetArchTest). Corollaire : les contrats de l'Application (`*Command`, `*Query`, `*Dto`, retours de handlers) n'exposent que des primitifs/BCL — la conversion (`EventId.From(...)`) vit dans les handlers, l'invariant reste garanti par le Domain.
 - **Classes à dépendances injectées** (handlers, services…) : primary constructor **+** champs `private readonly` initialisés depuis les paramètres ; les méthodes n'utilisent que les champs, jamais les paramètres capturés (garantie de non-réassignation, pas de double capture CS9124). Référence : `CreateEventCommandHandler`. Le primary constructor est **obligatoire sauf impossibilité technique** — cas connu : un validator FluentValidation, dont les `RuleFor` doivent s'enregistrer dans le corps du constructeur (un primary constructor n'a pas de corps) ; on utilise alors un constructeur classique, le champ reste `private readonly` et l'esprit de la règle est respecté (réf. `CreateEventCommandValidator`). Cette exception est conforme et **ne doit pas être remontée en revue**.
 - Tests : **pyramide**. Gros volume en unitaire (domaine) + intégration (handlers + EF). E2E fin (3-5 parcours critiques max).
@@ -102,6 +109,8 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
     skills/                  # design-ui
     launch.json              # serveur de dev front (prévisualisation), cible `web`
     settings.json            # permissions, MCP pré-approuvés, attribution
+  db/
+    seed/                    # scripts SQL de données, appliqués À LA MAIN, hors migrations
   docs/
     acceptance/              # critères d'acceptation par tranche (source du test-writer)
     api-conventions.md       # conventions HTTP, sous-ensemble Zalando (oracle du zalando-reviewer)
