@@ -10,7 +10,9 @@
 > front public). Tout ce que le guide prévoit hors de ce cadre est écarté explicitement en
 > §8, avec un motif d'une ligne. Un périmètre choisi, pas subi.
 >
-> Décisions du cadrage du 2026-09-07, complétées le 2026-09-10.
+> Décisions du cadrage du 2026-09-07, complétées le 2026-09-10, amendées au cadrage du
+> 2026-10-12 (tranche « événement courant » : §1 route singleton, §3.6 `500` délibéré, §9.3
+> résolu).
 
 ## Sommaire
 
@@ -56,6 +58,30 @@
 | `DELETE` | `/api/events/{id}` | suppression |
 
 Le préfixe `/api` est une **déviation assumée** de Zalando 135, motivée en §8.
+
+### Route de la tranche « événement courant » (2026-10-12)
+
+| Verbe | Chemin | Rôle |
+|---|---|---|
+| `GET` | `/api/events/current` | l'événement dont la fenêtre de commande est ouverte aujourd'hui |
+
+- **Forme singleton.** Le corps est l'événement lui-même, jamais l'objet de page de §6 : la
+  ressource désigne **un** événement, pas une collection filtrée qui en contiendrait un. §2.6 est
+  respecté parce que c'est un objet JSON ; §6 ne s'applique pas.
+- **`current` n'est pas un verbe** (§1.3) : c'est un **sous-ressource nommée**, qui désigne celui
+  des événements que le calendrier distingue aujourd'hui. L'invariant `EV-004` de
+  `docs/acceptance/event.md` rend cette désignation non ambiguë par construction.
+- **Client visé : le front public**, et lui seul. Son contrat est distinct de celui de la lecture
+  par identifiant du back-office (`EV-013`) : les deux ne partagent aucun DTO, et enrichir l'un
+  ne change pas l'autre.
+- Codes émis : `200`, `404` (aucun événement courant — **état normal**, qui pilote la page
+  « aucun événement à venir »), `500` (§3.6).
+
+**Point non tranché, à régler avant que `/{id}` n'existe.** `GET /api/events/<segment non-guid>`
+n'a aujourd'hui aucun code de statut défini. La question est sans objet tant que `/current` est la
+seule sous-route ; elle devient réelle le jour où `/{id}` coexiste avec elle, puisqu'il faudra
+décider si un segment non convertible en GUID est un `404` ou un `400`. Consigné ici parce que
+c'est une décision de surface HTTP, pas un critère d'acceptation.
 
 ---
 
@@ -110,7 +136,7 @@ Un code absent de ce tableau qui apparaît dans le code est un défaut.
 | `400 Bad Request` | tout payload invalide (§3.5) |
 | `404 Not Found` | identifiant inconnu |
 | `409 Conflict` | l'état courant de la ressource interdit l'opération (§3.5) |
-| `500 Internal Server Error` | exception non gérée. Jamais volontaire |
+| `500 Internal Server Error` | exception non gérée, **ou** invariant serveur violé et refusé délibérément (§3.6) |
 
 - **§3.1** — **Pas de `422`.** Zalando le classe *do-not-use* : `400` et `422` couvrent les
   mêmes cas et deux codes pour une même situation coûtent plus qu'ils ne rapportent.
@@ -143,6 +169,34 @@ ressource, ou à un autre moment ?* Si oui, c'est un `409`.
 
 Les collisions d'unicité sont des `409` et non des `400` : le payload est valide, c'est le
 contenu de la base qui le refuse.
+
+### §3.6 — Le `500` délibéré sur invariant violé
+
+**Décision du 2026-10-12.** La formulation d'origine de ce document était « `500` : exception non
+gérée. **Jamais volontaire** ». Elle est amendée : un `500` **posé explicitement par le code** est
+légitime dans un cas, et un seul.
+
+**Le cas.** Un chemin de lecture constate que l'état de la base viole un invariant que le
+serveur tient pour acquis, et qu'aucune réponse de succès ne peut décrire honnêtement. L'exemple
+qui motive l'amendement est `EV-017` de `docs/acceptance/event.md` : deux événements ont leur
+fenêtre de commande ouverte le même jour alors que `EV-004` les veut disjointes. Il n'y a pas de
+bonne réponse — en choisir une silencieusement serait rendre un résultat faux avec un `200`.
+
+**Ce que ça n'autorise pas.**
+
+- **Pas un substitut au `4xx`.** La requête est valide, le client n'a rien à corriger et n'a rien
+  fait de mal : c'est la seule différence avec §3.5, et c'est elle qui qualifie le cas.
+- **Pas un `404`.** Un `404` dirait « il n'y en a pas », ce qui est précisément ce qu'on ne sait
+  pas.
+- **Pas un relâchement du corps.** §4.5 et §4.6 s'appliquent sans exception : ni trace d'appel,
+  ni message d'exception, `type` et `title` du catalogue (§4.7), `trace_id` présent.
+- **Pas d'exception levée pour faire le travail.** Le `500` est *rendu*, pas *subi* : le chemin de
+  lecture constate, journalise, répond. Lever une exception pour obtenir le même statut
+  reviendrait à passer par `UseExceptionHandler` et à perdre le diagnostic.
+
+**Contrepartie obligatoire : la journalisation.** Le corps ne dit rien de l'incohérence (§4.5), le
+diagnostic doit donc exister côté serveur. Un `500` délibéré **journalise au niveau `Error`** et
+porte de quoi identifier les données en faute. Sans ce log, l'incident est invisible.
 
 ---
 
@@ -419,20 +473,39 @@ handler — la couche Application n'a pas à connaître la forme HTTP — mais l
 consommera devra l'**envelopper dans l'objet de page** de §6, sous peine de violer §2.6
 (Zalando 110). Noté ici pour que ce ne soit pas redécouvert au moment d'écrire l'endpoint.
 
-### 9.3 Types de médias négociables plus larges que §5.1 — écart connu, non corrigé
+### 9.3 Types de médias négociables plus larges que §5.1 — **corrigé le 2026-10-13**
 
-`AddControllers()` installe les formateurs par défaut : `SystemTextJsonOutputFormatter` annonce
-`application/json` **et** `text/json`, et `StringOutputFormatter` annonce `text/plain`. Un
-client qui demanderait `Accept: text/json` recevrait donc un succès étiqueté `text/json`, ce
-que §5.1 ne prévoit pas.
+**L'écart.** `AddControllers()` installe les formateurs par défaut :
+`SystemTextJsonOutputFormatter` annonce `application/json` **et** `text/json`, et
+`StringOutputFormatter` annonce `text/plain`. Un client qui demandait `Accept: text/json`
+recevait donc un succès étiqueté `text/json`, ce que §5.1 ne prévoit pas.
 
-L'écart est **latent** : aucun client ne demande ces types, et rien dans l'API ne les produit
-spontanément. Le corriger proprement passe par `[Produces("application/json")]` ou une
-convention MVC globale — deux choses qui se posent **avec le premier contrôleur**, que cette
-unité s'interdit d'écrire. À traiter en 10a, en même temps que le premier endpoint.
+Relevé par le `zalando-reviewer` lors de sa mise à l'épreuve, et laissé ouvert avec une échéance
+explicite : « à traiter en même temps que le premier endpoint », parce que c'est un point durable
+de `Program.cs` et non un artefact du contrôleur de sonde. Échéance atteinte avec
+`GET /api/events/current`.
 
-Relevé par le `zalando-reviewer` lors de sa mise à l'épreuve : c'est un point durable de
-`Program.cs`, pas un artefact du contrôleur jetable qui servait au test.
+**La correction.** `Program.cs` **retire les formateurs excédentaires** : `StringOutputFormatter`
+est supprimé de `MvcOptions.OutputFormatters`, et `text/json` est retiré des types supportés par
+les formateurs `System.Text.Json`, **en entrée comme en sortie** — §5.1 parle des requêtes autant
+que des réponses. Il ne reste donc qu'`application/json` (et `application/*+json`).
+
+Deux conséquences observables, toutes deux pincées par un test :
+
+- `Accept: text/json` reçoit un `200 application/json`, **pas un `406`** : `ReturnHttpNotAcceptable`
+  reste à `false`, cohérent avec l'absence de ligne `406` en §4.7.
+- `Content-Type: text/json` en requête reçoit désormais un `415`, comme n'importe quel autre type
+  non supporté.
+
+**Pourquoi pas `[Produces("application/json")]`**, qui était l'autre voie envisagée. La doc
+Microsoft est explicite : l'attribut « forces all actions … to return JSON-formatted responses for
+POCOs or **`ObjectResult` and its derived types** ». Or le résultat de `ControllerBase.Problem()`
+**est** un `ObjectResult` portant `application/problem+json` : posé sur le contrôleur ou sur
+l'action, l'attribut écraserait le type de média des réponses d'erreur et violerait §5.2 — sur un
+endpoint dont deux des trois issues sont des Problem JSON. Une convention MVC globale
+(`options.Filters.Add(new ProducesAttribute(...))`) a exactement le même effet, pour la même
+raison. Retirer les formateurs agit sur la **négociation**, pas sur le résultat : le contrat
+d'erreur n'est pas touché.
 
 ### 9.4 Le statut nu dégrade quand le client refuse le JSON — écart mesuré, non corrigé
 
