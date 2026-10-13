@@ -18,6 +18,7 @@ public static class DependencyInjection
         services.AddSingleton<IValidator<CreateEventCommand>, CreateEventCommandValidator>();
         services.AddScoped<CreateEventCommandHandler>();
         services.AddScoped<GetEventQueryHandler>();
+        services.AddScoped<GetCurrentEventQueryHandler>();
 
         services.AddSingleton<IValidator<CreateOrderCommand>, CreateOrderCommandValidator>();
         services.AddScoped<CreateOrderCommandHandler>();

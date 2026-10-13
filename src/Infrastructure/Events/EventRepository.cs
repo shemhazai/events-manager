@@ -28,4 +28,23 @@ public sealed class EventRepository(EventsManagerDbContext context) : IEventRepo
     {
         return await _context.Events.AnyAsync(e => e.Id == id, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Event>> FindUpToTwoWithOrderWindowOpenOnAsync(
+        DateOnly today,
+        CancellationToken cancellationToken)
+    {
+        // Encadrement aux deux bornes incluses. Une fenêtre absente donne NULL <= @today, donc
+        // UNKNOWN, donc une ligne écartée : « pas de fenêtre » signifie « commandes fermées »
+        // sans qu'aucun test de nullité n'ait à l'écrire. Le même prédicat en LINQ-to-objects
+        // écarte aussi la ligne ((DateOnly?)null <= today vaut false), ce qui garde les doubles
+        // de test fidèles à SQL Server.
+        //
+        // Aucun OrderBy : la lecture n'emploie aucun ordre de départage, et le TOP(2) qui en
+        // résulte est donc volontairement non déterministe. Deux candidates sont une
+        // incohérence à signaler, pas un ex æquo à trancher.
+        return await _context.Events
+                             .Where(e => e.OrderWindowStartDate <= today && today <= e.OrderWindowEndDate)
+                             .Take(2)
+                             .ToListAsync(cancellationToken);
+    }
 }
