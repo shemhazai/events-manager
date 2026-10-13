@@ -71,6 +71,15 @@ public sealed class ProbeController : ControllerBase
         return ValidationProblem(new ValidationProblemDetails(errors));
     }
 
+    [HttpGet("chaine-nue")]
+    public ActionResult<string> ChaineNue()
+    {
+        // Seule façon de solliciter StringOutputFormatter : il n'intervient que sur une chaîne
+        // rendue telle quelle. Sa présence étiquetterait cette réponse text/plain, ce que la
+        // section 5.1 ne prévoit pas — la sonde existe pour prouver qu'il a été retiré.
+        return Ok("bonjour");
+    }
+
     [HttpGet("boom")]
     public ActionResult Boom()
     {

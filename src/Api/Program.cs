@@ -6,6 +6,7 @@ using EventsManager.Api;
 using EventsManager.Application;
 using EventsManager.Infrastructure;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -14,7 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 // sérialisent les corps de réponse, DefaultProblemDetailsWriter sérialise les erreurs des
 // middlewares. N'en configurer qu'un donnerait deux conventions dans la même API.
 // Référentiel : docs/api-conventions.md, section 2.7.
-builder.Services.AddControllers()
+builder.Services.AddControllers(ConfigureFormatters)
        .AddJsonOptions(options => ConfigureSerialization(options.JsonSerializerOptions));
 builder.Services.ConfigureHttpJsonOptions(options => ConfigureSerialization(options.SerializerOptions));
 
@@ -56,6 +57,31 @@ app.UseHttpsRedirection();
 app.MapControllers();
 
 await app.RunAsync();
+
+/// <summary>
+/// Restreint les types de médias négociables à <c>application/json</c> (section 5.1).
+/// AddControllers installe par défaut des formateurs plus larges : SystemTextJson annonce aussi
+/// <c>text/json</c>, et StringOutputFormatter annonce <c>text/plain</c> — un client qui les
+/// demandait recevait un succès étiqueté avec, ce que la section 5.1 ne prévoit pas.
+/// On agit sur la <b>négociation</b>, et non sur le résultat : [Produces("application/json")]
+/// obtiendrait le même effet sur les succès mais écraserait aussi le type de média des
+/// ObjectResult dérivés — dont les Problem JSON de ControllerBase.Problem, en violation de la
+/// section 5.2. Motivé en détail en section 9.3.
+/// </summary>
+static void ConfigureFormatters(MvcOptions options)
+{
+    options.OutputFormatters.RemoveType<StringOutputFormatter>();
+
+    foreach (var formatter in options.OutputFormatters.OfType<SystemTextJsonOutputFormatter>())
+    {
+        formatter.SupportedMediaTypes.Remove("text/json");
+    }
+
+    foreach (var formatter in options.InputFormatters.OfType<SystemTextJsonInputFormatter>())
+    {
+        formatter.SupportedMediaTypes.Remove("text/json");
+    }
+}
 
 static void ConfigureSerialization(JsonSerializerOptions options)
 {
