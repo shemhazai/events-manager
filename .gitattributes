@@ -39,3 +39,9 @@
 *.eot   binary
 *.pdf   binary
 *.xlsx  binary
+
+# Fichiers lus par Docker et nginx : un CRLF venu d'un checkout Windows casse la
+# continuation de ligne « \ » d'un RUN et laisse un \r dans les motifs du .dockerignore.
+Dockerfile     text eol=lf
+.dockerignore  text eol=lf
+*.conf         text eol=lf
