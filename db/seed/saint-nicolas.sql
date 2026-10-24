@@ -9,8 +9,16 @@
     Ce script vit donc hors migrations et s'applique À LA MAIN.
 
     APPLICATION
+    Sur l'instance SQL Server locale, en authentification Windows :
         sqlcmd -S localhost -d EventsManager -E -i db\seed\saint-nicolas.sql
-    ou exécution directe dans SSMS / Azure Data Studio sur la base cible.
+    Dans le conteneur « db » du docker-compose, sur une base déjà migrée :
+        docker compose exec db bash -lc '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -d EventsManager -i /seed/saint-nicolas.sql'
+    Trois détails de cette commande, tous nécessaires : l'outil est sous /opt/mssql-tools18/bin
+    et non /opt/mssql-tools ; -C fait accepter le certificat auto-signé du conteneur ; les
+    guillemets simples laissent le shell DU CONTENEUR évaluer le mot de passe, au lieu de celui
+    du poste. Sous Git Bash uniquement, préfixer par MSYS_NO_PATHCONV=1, sans quoi la conversion
+    de chemins MSYS réécrit /opt/... en C:/Program Files/Git/opt/...
+    Ou exécution directe dans SSMS / Azure Data Studio sur la base cible.
     Idempotent : une seconde exécution ne fait rien et ne lève pas d'erreur.
 
     IDENTIFIANT
@@ -29,6 +37,12 @@
     CK_Events_OrderWindow_* de la base le vérifient de toute façon.
 */
 
+-- QUOTED_IDENTIFIER doit être ON dans le lot qui écrit : l'index unique (Name, Year) porte sur une
+-- colonne calculée, et SQL Server refuse alors l'INSERT si l'option est OFF (Msg 1934). sqlcmd la
+-- met à OFF par défaut là où SSMS la met à ON, ce qui a masqué le défaut jusqu'ici. Le script la
+-- pose donc lui-même plutôt que de dépendre du drapeau -I du client. Même contrainte pour toute
+-- autre écriture manuelle sur app.Events, un DELETE compris.
+SET QUOTED_IDENTIFIER ON;
 SET NOCOUNT ON;
 
 DECLARE @Id uniqueidentifier = CAST('01a13361-398e-7fcb-a44f-2774c3a1fd36' AS uniqueidentifier);
