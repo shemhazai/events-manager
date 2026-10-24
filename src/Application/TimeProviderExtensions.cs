@@ -16,8 +16,14 @@ public static class TimeProviderExtensions
     /// Fuseau des évènements, en identifiant IANA. Accepté sur Windows comme sur Linux depuis
     /// .NET 6 (résolution ICU), et mis en cache par le runtime depuis .NET 8 — d'où le champ
     /// statique plutôt qu'une résolution à chaque appel.
-    /// Limite connue : la résolution d'un identifiant IANA échoue en mode globalization
-    /// invariant, que ce dépôt n'active pas.
+    /// Contrainte d'hébergement, mesurée le 2026-10-18 : sous Linux, la résolution lit la base
+    /// tzdata du système, dans /usr/share/zoneinfo. Une image d'exécution qui ne l'embarque pas
+    /// (variantes aspnet chiseled, alpine, distroless) fait échouer ce champ statique au premier
+    /// appel, et toute route qui lit la date du jour rend un 500 — pendant que le conteneur, lui,
+    /// reste « Up ». D'où l'image complète mcr.microsoft.com/dotnet/aspnet:10.0 pour le service
+    /// « api » du docker-compose. Autre limite, distincte : la conversion croisée d'identifiants
+    /// (IANA sous Windows, identifiants Windows sous Unix) est indisponible en mode globalization
+    /// invariant comme en mode NLS, que ce dépôt n'active ni l'un ni l'autre.
     /// </summary>
     private static readonly TimeZoneInfo EventTimeZone = TimeZoneInfo.FindSystemTimeZoneById("Europe/Brussels");
 
