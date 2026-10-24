@@ -1,0 +1,9 @@
+# Contexte de build de l'image front (web/Dockerfile), dont le contexte est web/.
+
+# node_modules de l'hôte, installé sous Windows : sans cette ligne, le COPY des sources
+# écraserait celui que pnpm vient d'installer dans l'image pour Linux.
+node_modules
+dist
+.angular
+Dockerfile
+.dockerignore

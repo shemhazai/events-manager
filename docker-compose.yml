@@ -1,0 +1,90 @@
+# Pile locale complète : SQL Server, API, nginx. Le déploiement sur le NAS et la migration
+# PostgreSQL sont une autre unité ; rien ici n'est destiné à la production.
+#
+# Première séquence de lancement (détaillée dans CLAUDE.md) :
+#   docker compose up -d db
+#   docker compose run --rm migrate
+#   application du seed dans le conteneur db
+#   docker compose up -d
+#
+# Deux formes de $ cohabitent dans ce fichier, et la différence est porteuse :
+#   ${VAR} est interpolé PAR COMPOSE, depuis .env, à la lecture de ce fichier
+#   $$VAR  n'est pas touché par compose et reste évalué DANS le conteneur
+
+services:
+  db:
+    # La même image que la fixture Testcontainers des tests d'intégration
+    # (tests/IntegrationTests/SqlServerContainerFixture.cs) : un seul SQL Server dans le dépôt,
+    # donc un seul comportement à connaître.
+    image: mcr.microsoft.com/mssql/server:2022-CU14-ubuntu-22.04
+    environment:
+      ACCEPT_EULA: "Y"
+      # Explicite : sans MSSQL_PID, l'image démarre en Developer, interdite en production.
+      MSSQL_PID: Express
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+    ports:
+      # Lié à la loopback, et pas sur 1433 côté hôte : SSMS reste possible sans collision
+      # possible avec l'instance SQL Server locale du poste, qui peut occuper 1433 un jour.
+      - "127.0.0.1:14330:1433"
+    volumes:
+      - db-data:/var/opt/mssql
+      - ./db/seed:/seed:ro
+    healthcheck:
+      # sqlcmd est sous /opt/mssql-tools18/bin et non /opt/mssql-tools, -C est obligatoire contre
+      # le certificat auto-signé du conteneur, et -b fait d'une erreur SQL un code de sortie.
+      # $$MSSQL_SA_PASSWORD : la variable est lue dans le conteneur, donc le mot de passe
+      # n'apparaît pas en clair dans la définition du healthcheck.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -b -Q \"SELECT 1\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Service outil, rangé dans un profil : « docker compose up » ne le démarre jamais. Migrer
+  # reste un geste explicite — docker compose run --rm migrate — et l'API n'exécute aucun DDL.
+  migrate:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+      target: migrate
+    profiles: [tools]
+    depends_on:
+      db:
+        condition: service_healthy
+    # --connection remplace la chaîne de dev codée en dur dans la factory design-time. Sur un
+    # serveur vierge, le bundle crée la base puis applique les migrations.
+    command:
+      - --connection
+      - Server=db;Database=EventsManager;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Api/Dockerfile
+      target: runtime
+    depends_on:
+      db:
+        condition: service_healthy
+    # ASPNETCORE_ENVIRONMENT reste à son défaut, Production, délibérément : MapOpenApi() n'est
+    # câblé qu'en Development, et appsettings.Development.json porte une chaîne « Integrated
+    # Security » qui ne vaut rien dans un conteneur.
+    environment:
+      ConnectionStrings__EventsManager: Server=db;Database=EventsManager;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True
+    # AUCUN port publié : nginx est le seul point d'entrée de la pile.
+
+  web:
+    build:
+      context: ./web
+      target: runtime
+    # service_started et non service_healthy : l'API n'a pas de healthcheck, il n'y a pas de
+    # GET /health dans cette unité. Ce depends_on n'est pas décoratif pour autant — nginx résout
+    # « api » au chargement de sa configuration et refuserait de démarrer sans le conteneur.
+    # Conséquence assumée : un 502 est possible le temps que l'API se mette à écouter.
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "8080:80"
+
+volumes:
+  db-data:

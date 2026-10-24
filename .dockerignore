@@ -1,0 +1,22 @@
+# Contexte de build de l'image API (src/Api/Dockerfile), dont le contexte est la racine du dépôt.
+# Le contexte du front a son propre fichier : web/.dockerignore.
+
+# Secret, en tête de liste et jamais retiré : aucun mot de passe ne doit pouvoir entrer dans une
+# couche d'image, même par accident.
+.env
+
+# Sorties de build locales. Leur présence ferait diverger ce build de celui d'un clone propre.
+**/bin
+**/obj
+TestResults
+
+# Fichiers d'utilisateur de Visual Studio : ignorés par git, mais bien présents dans l'arbre de
+# travail et importés par MSBuild. Les exclure est ce qui rend le build local identique au propre.
+**/*.user
+
+# Hors du périmètre de l'image API.
+.git
+.vs
+tests
+web
+docs

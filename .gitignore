@@ -58,3 +58,5 @@ bundleconfig.json
 ## Secrets / config locaux
 appsettings.*.local.json
 secrets.json
+# Secret de la pile locale en conteneurs. Modèle versionné : .env.example
+.env
