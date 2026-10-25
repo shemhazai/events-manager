@@ -60,7 +60,7 @@ Cette liste n'est pas générique : chaque point y est parce qu'il a manqué au 
 
 **B. Les chaînes**
 - Le trim est-il appliqué avant validation et avant stockage ?
-- Chaque comparaison est-elle **sensible à la casse ou non** ? À poser pour chacune, séparément. Ne jamais la déduire : sur `Event`, le comportement actuel dépend de la collation SQL Server par défaut, donc d'un effet de bord et non d'une décision.
+- Chaque comparaison est-elle **sensible à la casse ou non** ? À poser pour chacune, séparément. Ne jamais la déduire. Précédent à garder en tête : sur `Event`, l'insensibilité à la casse des noms a longtemps dépendu de la collation SQL Server par défaut, donc d'un effet de bord. Elle est depuis le 2026-10-12 une décision écrite, portée par une colonne générée et un index unique (EV-U2). Une comparaison dont la casse n'est pas tranchée au cadrage finit toujours par l'être par un défaut de moteur.
 
 **C. Le temps**
 - Les bornes sont-elles inclusives ou exclusives : **le jour même compte-t-il** ?

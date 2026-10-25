@@ -37,7 +37,7 @@ public sealed class EventRepository(EventsManagerDbContext context) : IEventRepo
         // UNKNOWN, donc une ligne écartée : « pas de fenêtre » signifie « commandes fermées »
         // sans qu'aucun test de nullité n'ait à l'écrire. Le même prédicat en LINQ-to-objects
         // écarte aussi la ligne ((DateOnly?)null <= today vaut false), ce qui garde les doubles
-        // de test fidèles à SQL Server.
+        // de test fidèles au comportement de la base.
         //
         // Aucun OrderBy : la lecture n'emploie aucun ordre de départage, et le TOP(2) qui en
         // résulte est donc volontairement non déterministe. Deux candidates sont une

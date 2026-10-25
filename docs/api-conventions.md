@@ -368,7 +368,7 @@ Réponse d'une liste (Zalando 248), toujours un objet (§2.6) :
 - **§6.9** — Le `Take(limit + 1)` sert à **détecter l'existence d'une page suivante** sans
   `COUNT` : si la requête rend `limit + 1` lignes, `next` existe ; la ligne excédentaire est
   jetée avant sérialisation.
-- **§6.10** — La forme `a > x || (a == x && b > y)` est **obligatoire**. SQL Server sait
+- **§6.10** — La forme `a > x || (a == x && b > y)` est **obligatoire**. PostgreSQL sait
   comparer des row-values (`WHERE (a, b) > (@x, @y)`), plus court et plus efficace, mais **EF
   Core ne sait pas l'exprimer en LINQ**
   ([efcore#26822](https://github.com/dotnet/efcore/issues/26822)). Écrire la forme développée

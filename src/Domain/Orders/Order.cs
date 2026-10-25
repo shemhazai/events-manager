@@ -29,7 +29,7 @@ public sealed class Order
 
     /// <summary>
     /// Date de création (UTC), fournie par l'appelant. Porte le tri « ordre de
-    /// création » côté SQL Server — jamais l'ID (cf. <see cref="OrderId"/>).
+    /// création » côté SQL — jamais l'ID (cf. <see cref="OrderId"/>).
     /// </summary>
     public DateTime CreatedAt { get; }
 

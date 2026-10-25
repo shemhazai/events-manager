@@ -165,7 +165,7 @@ Reste factuel et court. Pas de "tout est parfait !".
 
 ## Notes
 
-- Solution : `events-manager.slnx` à la racine du repo. Projets de tests : `tests/UnitTests/EventsManager.UnitTests.csproj` (unitaires), `tests/ApiTests/EventsManager.ApiTests.csproj` (pipeline HTTP réel via `WebApplicationFactory` — chaîne de connexion factice, aucune connexion ouverte au démarrage, **pas de Docker**) et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` (intégration, Testcontainers SQL Server → Docker actif requis).
+- Solution : `events-manager.slnx` à la racine du repo. Projets de tests : `tests/UnitTests/EventsManager.UnitTests.csproj` (unitaires), `tests/ApiTests/EventsManager.ApiTests.csproj` (pipeline HTTP réel via `WebApplicationFactory` — chaîne de connexion factice, aucune connexion ouverte au démarrage, **pas de Docker**) et `tests/IntegrationTests/EventsManager.IntegrationTests.csproj` (intégration, Testcontainers PostgreSQL → Docker actif requis).
 - Front : workspace Angular `events-manager-web` sous `web/` (runner de tests Vitest du scaffold, builder `@angular/build:unit-test`). Les commandes de la boucle web ciblent `web/` via `pnpm -C web`, depuis la racine du repo.
 - Pas de commit à la fin de `/check`. C'est une boucle de vérification locale, pas un workflow de publication.
 - `/check` part du principe que le seul but légitime est de faire dire la vérité au code, jamais de faire taire les outils qui la disent.

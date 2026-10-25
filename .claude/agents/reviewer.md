@@ -33,8 +33,8 @@ La demande te donne la tranche à reviewer (ex. "la tranche Event"). Cartographi
 - Handlers et services : primary constructor + champs private readonly initialisés depuis les paramètres, les méthodes n'utilisent que les champs, jamais les paramètres capturés.
 
 **Persistance**
-- Colonnes d'audit DB-only : AddedBy, AddedDate, UpdatedBy, UpdatedDate n'apparaissent ni dans Domain, ni dans le modèle EF (entités, configurations), pas même en shadow property. Elles ne vivent que dans les migrations (réf. migration EventsAudit).
-- Toute table à trigger : HasTrigger déclaré dans la config fluent, migration complétée à la main (colonnes + trigger), sinon SaveChanges échoue.
+- Colonnes d'audit DB-only : AddedBy, AddedDate, UpdatedBy, UpdatedDate n'apparaissent ni dans Domain, ni dans le modèle EF (entités, configurations), pas même en shadow property. Elles ne vivent que dans les migrations (réf. migration InitialCreate).
+- Toute table à trigger : migration complétée à la main (colonnes + trigger), et SURTOUT PAS de HasTrigger dans la config fluent — c'était un contournement de la clause OUTPUT de SQL Server, inutile avec Npgsql, qui emploie RETURNING. Le signaler s'il réapparaît.
 - Config fluent explicite pour les conversions de VO/IDs et les longueurs, adossées aux constantes du domaine (pas de nombre magique dupliqué entre couches).
 
 **Tests**
@@ -51,8 +51,8 @@ La demande te donne la tranche à reviewer (ex. "la tranche Event"). Cartographi
 
 Ces points ont été tranchés en connaissance de cause, les remonter est du bruit :
 - Pas de gestion de concurrence (RowVersion retiré volontairement) : back-office mono-utilisateur.
-- Audit : les DELETE ne sont pas tracés ; SUSER_SNAME() donnera le compte technique de l'app en prod.
-- Historique des migrations non squashé (valeur pédagogique du trail de décisions).
+- Audit : les DELETE ne sont pas tracés ; current_user donnera le compte technique de l'app en prod.
+- Migration initiale UNIQUE depuis la bascule PostgreSQL du 2026-10-25 : les six migrations SQL Server ont été retirées de l'arbre, elles ne se rejouaient pas sur un autre provider, et le trail de décisions reste entier dans le git log. Ne pas remonter l'absence d'historique de migrations.
 
 ## Format du rapport
 
