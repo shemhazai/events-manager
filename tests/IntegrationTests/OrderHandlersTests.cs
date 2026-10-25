@@ -9,7 +9,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EventsManager.IntegrationTests;
 
 /// <summary>
-/// La chaîne applicative Order complète contre un vrai SQL Server, graphe réel assemblé
+/// La chaîne applicative Order complète contre un vrai PostgreSQL, graphe réel assemblé
 /// à la main (pas de host DI) : création — ValidateAndThrowAsync → ExistsAsync →
 /// Order.Create → AddAsync (EF) ; lectures — GetByIdAsync → ToDto() et
 /// ListByEventAsync → ToSummaryDto(). Couvre OR-P2 (round-trip create → get → list),
@@ -17,13 +17,13 @@ namespace EventsManager.IntegrationTests;
 /// Le tri par CreatedAt exige des horloges croissantes : un handler et un
 /// FixedTimeProvider neufs par création.
 /// </summary>
-public class OrderHandlersTests(SqlServerContainerFixture fixture)
+public class OrderHandlersTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateOnly Today = new(2026, 7, 13);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
     private static readonly DateTimeOffset BaseUtcNow = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task HandleAsync_CreateThenGetThenList_RoundtripsThroughRealDatabase()
@@ -247,7 +247,7 @@ public class OrderHandlersTests(SqlServerContainerFixture fixture)
         foreach (var label in labels)
         {
             var lineCount = await verifyContext.Database
-                .SqlQuery<int>($"SELECT COUNT(*) AS Value FROM app.OrderLines WHERE Label = {label}")
+                .SqlQuery<int>($"SELECT COUNT(*) AS \"Value\" FROM app.\"OrderLines\" WHERE \"Label\" = {label}")
                 .SingleAsync(TestContext.Current.CancellationToken);
             lineCount.Should().Be(0);
         }

@@ -1,28 +1,29 @@
 using EventsManager.Domain.Events;
 using EventsManager.Infrastructure.Events;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace EventsManager.IntegrationTests;
 
 /// <summary>
-/// Aller-retours réels du repository contre SQL Server : mapping fluent
-/// (conversion EventId, nvarchar(100), DateOnly → date) et index unique (Name, Year) —
-/// un évènement n'a lieu qu'une fois par année civile.
+/// Aller-retours réels du repository contre PostgreSQL : mapping fluent
+/// (conversion EventId, varchar(100), DateOnly → date) et index unique (NameLower, Year) —
+/// un évènement n'a lieu qu'une fois par année civile, et ce à la casse près.
 /// Chaque test écrit puis relit via des DbContext distincts (pas d'illusion de cache),
 /// et crée ses propres données avec un nom unique (l'index unique l'exige).
 /// </summary>
-public class EventRepositoryTests(SqlServerContainerFixture fixture)
+public class EventRepositoryTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateOnly Today = new(2026, 7, 13);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task AddAsync_Then_GetByIdAsync_RoundtripsAggregate()
     {
         // EV-P1 : conventions de persistance existantes — identifiant typé, nom et date
-        // relus intacts depuis SQL Server.
+        // relus intacts depuis PostgreSQL.
         var @event = Event.Create(UniqueName("Fête nationale"), ValidDate, Today);
         await AddAsync(@event);
 
@@ -72,11 +73,12 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     public async Task AddAsync_WithDuplicateNameAndYear_ThrowsDbUpdateException()
     {
         // EV-U1 : deux évènements ne peuvent pas porter le même nom dans la même année
-        // civile ; EV-U4 : l'unicité est garantie jusqu'en base, sur SQL Server.
+        // civile ; EV-U4 : l'unicité est garantie jusqu'en base, sur PostgreSQL.
         var name = UniqueName("Marché de Noël");
         await AddAsync(Event.Create(name, ValidDate, Today));
 
-        // Même nom et même année civile (2026), mais autre date : l'index unique (Name, Year) refuse.
+        // Même nom et même année civile (2026), mais autre date : l'index unique
+        // (NameLower, Year) refuse. Le nom replié étant unique, le nom exact l'est aussi.
         var duplicate = Event.Create(name, new DateOnly(2026, 8, 15), Today);
         Func<Task> act = async () => await AddAsync(duplicate);
 
@@ -96,6 +98,28 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
         Func<Task> act = async () => await AddAsync(duplicate);
 
         await act.Should().ThrowAsync<DbUpdateException>();
+    }
+
+    [Fact]
+    public async Task AddAsync_WithSameNameDifferingOnlyByCase_ThrowsDbUpdateException()
+    {
+        // EV-U2 (amendé le 2026-10-12) : la comparaison de noms ignore la casse. Cette règle
+        // n'avait AUCUN test, parce qu'elle reposait entièrement sur la collation CI par défaut
+        // de SQL Server — PostgreSQL étant sensible à la casse, elle serait partie en silence.
+        // Rien en amont ne la garantit : Event.Create ne connaît pas l'unicité et
+        // CreateEventCommandHandler ne la vérifie pas. Seul l'index unique (NameLower, Year)
+        // mord, et l'assertion sur son nom est ce qui empêche ce test de devenir vert pour une
+        // autre raison que la sienne.
+        var name = UniqueName("Souper");
+        await AddAsync(Event.Create(name, new DateOnly(2026, 9, 12), Today));
+
+        var duplicate = Event.Create(name.ToUpperInvariant(), new DateOnly(2026, 11, 8), Today);
+        Func<Task> act = async () => await AddAsync(duplicate);
+
+        var exception = await act.Should().ThrowAsync<DbUpdateException>();
+        var inner = exception.Which.InnerException.Should().BeOfType<PostgresException>().Which;
+        inner.SqlState.Should().Be("23505");
+        inner.ConstraintName.Should().Be("IX_Events_NameLower_Year");
     }
 
     [Fact]
@@ -121,7 +145,7 @@ public class EventRepositoryTests(SqlServerContainerFixture fixture)
     public async Task AddAsync_WithNameOfMaxLength_RoundtripsIntact()
     {
         // EV-N3 : borne exacte — 100 caractères est la dernière longueur valide, jusqu'en base.
-        // 67 « é » + espace + Guid N (32) = 100 caractères exactement : borne nvarchar(100)
+        // 67 « é » + espace + Guid N (32) = 100 caractères exactement : borne varchar(100)
         // et Unicode prouvés d'un coup, tout en restant unique.
         var name = $"{new string('é', Event.NameMaxLength - 33)} {Guid.CreateVersion7():N}";
         var @event = Event.Create(name, ValidDate, Today);

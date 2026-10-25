@@ -6,7 +6,7 @@ namespace EventsManager.ApiTests;
 /// <summary>
 /// Double de test de <see cref="IEventRepository"/> pour les tests de pipeline HTTP : ils
 /// vérifient le <b>contrat de la réponse</b> (statut, type de média, corps), pas la traduction
-/// SQL du prédicat — celle-ci est prouvée sur un vrai SQL Server par les tests d'intégration.
+/// SQL du prédicat — celle-ci est prouvée sur un vrai PostgreSQL par les tests d'intégration.
 /// C'est aussi ce qui garde ces tests sans Docker, comme le reste de cette assembly.
 /// <para>
 /// Alimenté par <see cref="Events"/> avant l'appel HTTP. Même prédicat et même plafond à deux

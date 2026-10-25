@@ -11,17 +11,16 @@ namespace EventsManager.Infrastructure.Orders;
 /// persistées avec elle dans le même SaveChanges — la commande est atomique).
 /// Les colonnes d'audit des deux tables (AddedBy, AddedDate, UpdatedBy, UpdatedDate)
 /// n'existent volontairement pas dans ce modèle, même pas en shadow : créées par la
-/// migration Orders et alimentées côté SQL (DEFAULT + trigger), elles restent
+/// migration InitialCreate et alimentées côté SQL (DEFAULT + trigger), elles restent
 /// invisibles d'EF (cf. <c>EventConfiguration</c>).
 /// </summary>
 internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 {
     public void Configure(EntityTypeBuilder<Order> builder)
     {
-        // HasTrigger obligatoire : depuis EF Core 7, SaveChanges utilise une clause OUTPUT
-        // sans INTO, que SQL Server refuse sur une table portant un trigger. Déclarer le
-        // trigger fait basculer EF sur la stratégie compatible.
-        builder.ToTable("Orders", table => table.HasTrigger("TR_Orders_Update_Audit"));
+        // Pas de HasTrigger, ici ni sur OrderLines : cf. EventConfiguration — la déclaration ne
+        // contournait que la clause OUTPUT de SQL Server, et Npgsql emploie RETURNING.
+        builder.ToTable("Orders");
 
         builder.HasKey(o => o.Id);
 
@@ -42,10 +41,12 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
                .IsRequired();
 
         builder.Property(o => o.CustomerName)
-               .HasMaxLength(Order.CustomerNameMaxLength); // nvarchar(100) ; NOT NULL par convention NRT
+               .HasMaxLength(Order.CustomerNameMaxLength); // varchar(100) ; NOT NULL par convention NRT
 
-        // Le tri métier « ordre de création » de la liste par évènement est porté par
-        // CreatedAt (uniqueidentifier trie par les 6 derniers octets, jamais par l'ID).
+        // Le tri métier « ordre de création » de la liste par évènement est porté par CreatedAt,
+        // jamais par l'ID. PostgreSQL trie pourtant uuid octet par octet, donc un UUIDv7 y est
+        // chronologique : la colonne explicite reste la règle parce qu'elle ne dépend d'aucun
+        // provider (cf. OrderId).
         builder.HasIndex(o => new { o.EventId, o.CreatedAt });
 
         // Total : calculé par le domaine à partir des lignes, ni saisi ni stocké.
@@ -53,17 +54,31 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
 
         builder.OwnsMany(o => o.Lines, lines =>
         {
-            lines.ToTable("OrderLines", table => table.HasTrigger("TR_OrderLines_Update_Audit"));
+            lines.ToTable("OrderLines");
 
             lines.WithOwner().HasForeignKey("OrderId");
 
-            // PK composite (OrderId, Label) : aucune génération côté DB, et unicité
-            // physique des libellés par commande — la collation CI par défaut de
-            // SQL Server la rend insensible à la casse, comme la règle du domaine.
+            // PK composite (OrderId, Label) : aucune génération côté DB, et unicité physique
+            // EXACTE des libellés par commande. Elle est conservée telle quelle — une PRIMARY KEY
+            // PostgreSQL ne peut pas porter d'expression (mesuré le 2026-10-12), elle ne peut
+            // donc pas porter elle-même l'insensibilité à la casse.
             lines.HasKey("OrderId", nameof(OrderLine.Label));
 
             lines.Property(l => l.Label)
                  .HasMaxLength(OrderLine.LabelMaxLength);
+
+            // LabelLower porte l'insensibilité à la casse de la règle du domaine (libellés
+            // uniques après trim et sans égard à la casse, cf. Order.Create). Avant la bascule,
+            // la collation CI par défaut de SQL Server la donnait gratuitement à la PK, alors
+            // que PostgreSQL est sensible à la casse : il faut donc l'écrire. L'index unique
+            // s'AJOUTE à la PK et ne la remplace pas : la PK reste la clé, cible de la FK et
+            // identité de la ligne.
+            lines.Property<string>("LabelLower")
+                 .HasMaxLength(OrderLine.LabelMaxLength)
+                 .IsRequired()
+                 .HasComputedColumnSql("lower(\"Label\")", stored: true);
+
+            lines.HasIndex("OrderId", "LabelLower").IsUnique();
 
             lines.Property(l => l.UnitPrice)
                  .HasConversion(money => money.Amount, value => Money.From(value))

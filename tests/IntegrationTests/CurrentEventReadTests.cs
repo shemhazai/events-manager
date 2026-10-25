@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace EventsManager.IntegrationTests;
 
 /// <summary>
-/// Lecture de l'évènement courant de bout en bout contre un vrai SQL Server : handler →
+/// Lecture de l'évènement courant de bout en bout contre un vrai PostgreSQL : handler →
 /// TodayLocal() → prédicat SQL d'encadrement → projection. Couvre EV-001 à EV-003, EV-007,
 /// EV-009, EV-014, EV-015, EV-018 et EV-P4 de docs/acceptance/event.md, ainsi que les deux
 /// règles de forme de la fenêtre (EV-W2, EV-W3) sur le seul chemin d'écriture de cette
@@ -22,12 +22,12 @@ namespace EventsManager.IntegrationTests;
 /// fenêtre d'un seul jour. Les valeurs littérales du fichier de critères
 /// (aujourd'hui = 2026-06-15) sont exercées là où aucune base n'est partagée : tests unitaires
 /// et ApiTests. Chaque test écrit puis relit via des DbContext distincts, et nomme ses
-/// évènements de façon unique (l'index unique (Name, Year) l'exige).
+/// évènements de façon unique (l'index unique (NameLower, Year) l'exige).
 /// </para>
 /// </summary>
-public class CurrentEventReadTests(SqlServerContainerFixture fixture)
+public class CurrentEventReadTests(PostgreSqlContainerFixture fixture)
 {
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task HandleAsync_WithAWindowStartingToday_ReturnsThatEvent()
@@ -217,7 +217,7 @@ public class CurrentEventReadTests(SqlServerContainerFixture fixture)
         var id = Guid.CreateVersion7();
 
         Func<Task> act = () => ExecuteSqlAsync(
-            $"INSERT INTO app.Events (Id, Name, [Date], OrderWindowStartDate) VALUES ({id}, {UniqueName()}, {new DateOnly(2044, 4, 20)}, {new DateOnly(2044, 3, 1)})");
+            $"INSERT INTO app.\"Events\" (\"Id\", \"Name\", \"Date\", \"OrderWindowStartDate\") VALUES ({id}, {UniqueName()}, {new DateOnly(2044, 4, 20)}, {new DateOnly(2044, 3, 1)})");
 
         await act.Should().ThrowAsync<DbException>();
         (await GetByIdAsync(EventId.From(id))).Should().BeNull();
@@ -230,7 +230,7 @@ public class CurrentEventReadTests(SqlServerContainerFixture fixture)
         var id = Guid.CreateVersion7();
 
         Func<Task> act = () => ExecuteSqlAsync(
-            $"INSERT INTO app.Events (Id, Name, [Date], OrderWindowEndDate) VALUES ({id}, {UniqueName()}, {new DateOnly(2045, 4, 20)}, {new DateOnly(2045, 3, 20)})");
+            $"INSERT INTO app.\"Events\" (\"Id\", \"Name\", \"Date\", \"OrderWindowEndDate\") VALUES ({id}, {UniqueName()}, {new DateOnly(2045, 4, 20)}, {new DateOnly(2045, 3, 20)})");
 
         await act.Should().ThrowAsync<DbException>();
         (await GetByIdAsync(EventId.From(id))).Should().BeNull();
@@ -244,7 +244,7 @@ public class CurrentEventReadTests(SqlServerContainerFixture fixture)
         var id = Guid.CreateVersion7();
 
         Func<Task> act = () => ExecuteSqlAsync(
-            $"INSERT INTO app.Events (Id, Name, [Date], OrderWindowStartDate, OrderWindowEndDate) VALUES ({id}, {UniqueName()}, {new DateOnly(2046, 4, 20)}, {new DateOnly(2046, 3, 1)}, {new DateOnly(2046, 4, 21)})");
+            $"INSERT INTO app.\"Events\" (\"Id\", \"Name\", \"Date\", \"OrderWindowStartDate\", \"OrderWindowEndDate\") VALUES ({id}, {UniqueName()}, {new DateOnly(2046, 4, 20)}, {new DateOnly(2046, 3, 1)}, {new DateOnly(2046, 4, 21)})");
 
         await act.Should().ThrowAsync<DbException>();
         (await GetByIdAsync(EventId.From(id))).Should().BeNull();
@@ -257,7 +257,7 @@ public class CurrentEventReadTests(SqlServerContainerFixture fixture)
         var id = Guid.CreateVersion7();
 
         Func<Task> act = () => ExecuteSqlAsync(
-            $"INSERT INTO app.Events (Id, Name, [Date], OrderWindowStartDate, OrderWindowEndDate) VALUES ({id}, {UniqueName()}, {new DateOnly(2047, 4, 20)}, {new DateOnly(2047, 3, 20)}, {new DateOnly(2047, 3, 1)})");
+            $"INSERT INTO app.\"Events\" (\"Id\", \"Name\", \"Date\", \"OrderWindowStartDate\", \"OrderWindowEndDate\") VALUES ({id}, {UniqueName()}, {new DateOnly(2047, 4, 20)}, {new DateOnly(2047, 3, 20)}, {new DateOnly(2047, 3, 1)})");
 
         await act.Should().ThrowAsync<DbException>();
         (await GetByIdAsync(EventId.From(id))).Should().BeNull();
@@ -273,7 +273,7 @@ public class CurrentEventReadTests(SqlServerContainerFixture fixture)
         var start = new DateOnly(2048, 3, 1);
 
         await ExecuteSqlAsync(
-            $"INSERT INTO app.Events (Id, Name, [Date], OrderWindowStartDate, OrderWindowEndDate) VALUES ({id}, {UniqueName()}, {eventDate}, {start}, {eventDate})");
+            $"INSERT INTO app.\"Events\" (\"Id\", \"Name\", \"Date\", \"OrderWindowStartDate\", \"OrderWindowEndDate\") VALUES ({id}, {UniqueName()}, {eventDate}, {start}, {eventDate})");
 
         var reloaded = await GetByIdAsync(EventId.From(id));
 

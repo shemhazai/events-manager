@@ -3,24 +3,26 @@ using EventsManager.Domain.Orders;
 using EventsManager.Infrastructure.Events;
 using EventsManager.Infrastructure.Orders;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace EventsManager.IntegrationTests;
 
 /// <summary>
-/// Aller-retours réels du repository Order contre SQL Server : mapping fluent
+/// Aller-retours réels du repository Order contre PostgreSQL : mapping fluent
 /// (conversions OrderId/EventId/Money, lignes owned rechargées avec la racine),
-/// FK physique vers app.Events (OR-P1) et unicité physique des libellés d'une
-/// commande portée par la PK composite (OrderId, Label), collation CI comprise.
+/// FK physique vers app."Events" (OR-P1), unicité physique EXACTE des libellés d'une commande
+/// portée par la PK composite (OrderId, Label), et unicité INSENSIBLE À LA CASSE portée par
+/// l'index unique (OrderId, LabelLower) — celle-ci ne vient plus d'une collation.
 /// Chaque test écrit puis relit via des DbContext distincts (pas d'illusion de cache),
-/// et crée ses propres données uniques (index unique (Name, Year) sur Events).
+/// et crée ses propres données uniques (index unique (NameLower, Year) sur Events).
 /// </summary>
-public class OrderRepositoryTests(SqlServerContainerFixture fixture)
+public class OrderRepositoryTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateOnly Today = new(2026, 7, 13);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
     private static readonly DateTime CreatedAtUtc = new(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task AddAsync_Then_GetByIdAsync_RoundtripsAggregateWithItsLines()
@@ -82,11 +84,19 @@ public class OrderRepositoryTests(SqlServerContainerFixture fixture)
     public async Task OrdersTable_DoesNotStoreTheTotal()
     {
         // OR-C5 : le total n'est ni saisi ni stocké, il est calculé — aucune colonne de
-        // total dans app.Orders. Introspection du schéma réel, pas du modèle EF.
+        // total dans app."Orders". Introspection du schéma réel, pas du modèle EF.
+        // information_schema.columns et non sys.columns, qui est une vue propre à SQL Server.
+        // L'alias est quoté : sans guillemets, PostgreSQL le replierait en « value » et
+        // SqlQuery<T> ne retrouverait plus la colonne par son nom.
         await using var context = _fixture.CreateContext();
 
         var columns = await context.Database
-            .SqlQuery<string>($"SELECT name AS Value FROM sys.columns WHERE object_id = OBJECT_ID('app.Orders')")
+            .SqlQuery<string>(
+                $"""
+                 SELECT column_name AS "Value"
+                 FROM information_schema.columns
+                 WHERE table_schema = 'app' AND table_name = 'Orders'
+                 """)
             .ToListAsync(TestContext.Current.CancellationToken);
 
         // Garde-fou : table introuvable ou mal nommée = liste vide, l'assertion suivante
@@ -99,11 +109,13 @@ public class OrderRepositoryTests(SqlServerContainerFixture fixture)
     }
 
     [Fact]
-    public async Task InsertLineViaSql_WithDuplicateLabelIgnoringCase_ThrowsPrimaryKeyViolation()
+    public async Task InsertLineViaSql_WithDuplicateLabelIgnoringCase_ThrowsUniqueViolation()
     {
-        // Filet physique du « pas de doublon de libellé » (OR-C4) : la PK composite
-        // (OrderId, Label) refuse un doublon même en contournant le domaine, et la
-        // collation CI par défaut de SQL Server couvre la différence de casse.
+        // Filet physique du « pas de doublon de libellé » (OR-C4), et le seul endroit du dépôt
+        // qui le prouve. Il ne vient plus de la PK : une PRIMARY KEY PostgreSQL ne peut pas
+        // porter d'expression, donc l'insensibilité à la casse est portée par l'index unique
+        // (OrderId, LabelLower) posé par InitialCreate. Avant la bascule, la collation CI par
+        // défaut de SQL Server la donnait gratuitement à la PK composite.
         var eventId = await AddEventAsync();
         var order = Order.Create(
             eventId,
@@ -115,14 +127,18 @@ public class OrderRepositoryTests(SqlServerContainerFixture fixture)
         await using var context = _fixture.CreateContext();
         Func<Task> act = () => context.Database.ExecuteSqlAsync(
             $"""
-             INSERT INTO app.OrderLines (OrderId, Label, UnitPrice, Quantity)
+             INSERT INTO app."OrderLines" ("OrderId", "Label", "UnitPrice", "Quantity")
              VALUES ({order.Id.Value}, {"FRITES"}, {2.00m}, {1});
              """,
             TestContext.Current.CancellationToken);
 
-        // 2627 : « Violation of PRIMARY KEY constraint » — l'erreur SQL Server dédiée.
-        (await act.Should().ThrowAsync<Microsoft.Data.SqlClient.SqlException>())
-            .Which.Number.Should().Be(2627);
+        // 23505 = unique_violation. L'assertion sur le NOM de la contrainte n'est pas
+        // décorative : la PK rendrait exactement le même SQLSTATE, donc sans elle ce test
+        // resterait vert si l'index de casse disparaissait et qu'un doublon exact passait à
+        // sa place. C'est ce qui l'empêche de devenir vert pour la mauvaise raison.
+        var exception = await act.Should().ThrowAsync<PostgresException>();
+        exception.Which.SqlState.Should().Be("23505");
+        exception.Which.ConstraintName.Should().Be("IX_OrderLines_OrderId_LabelLower");
     }
 
     private static string UniqueName(string prefix)

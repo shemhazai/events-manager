@@ -7,14 +7,14 @@ namespace EventsManager.IntegrationTests;
 /// <summary>
 /// Colonnes d'audit DB-only (AddedBy, AddedDate, UpdatedBy, UpdatedDate) : hors modèle EF,
 /// donc lues en SQL brut. Added* remplies par les contraintes DEFAULT à l'insertion ;
-/// Updated* par le trigger AFTER UPDATE (TR_Events_Update_Audit).
+/// Updated* par le trigger BEFORE UPDATE (TR_Events_Update_Audit).
 /// </summary>
-public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
+public class EventAuditColumnsTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateOnly Today = new(2026, 7, 13);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task Insert_PopulatesAddedColumns_AndLeavesUpdatedColumnsNull()
@@ -33,7 +33,7 @@ public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
     [Fact]
     public async Task SqlUpdate_PopulatesUpdatedColumns_ViaTrigger()
     {
-        // EV-P1 : colonnes d'audit DB-only — Updated* remplies par le trigger AFTER UPDATE.
+        // EV-P1 : colonnes d'audit DB-only — Updated* remplies par le trigger BEFORE UPDATE.
         var @event = await AddEventAsync();
         var newName = $"Renommé {Guid.CreateVersion7():N}";
 
@@ -42,7 +42,7 @@ public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
             // L'agrégat est immuable et aucun use case de modification n'existe encore :
             // un UPDATE SQL direct suffit à prouver le trigger.
             await context.Database.ExecuteSqlAsync(
-                $"UPDATE app.Events SET Name = {newName} WHERE Id = {@event.Id.Value}",
+                $"UPDATE app.\"Events\" SET \"Name\" = {newName} WHERE \"Id\" = {@event.Id.Value}",
                 TestContext.Current.CancellationToken);
         }
 
@@ -69,7 +69,7 @@ public class EventAuditColumnsTests(SqlServerContainerFixture fixture)
 
         return await context.Database
             .SqlQuery<EventAuditRow>(
-                $"SELECT AddedBy, AddedDate, UpdatedBy, UpdatedDate FROM app.Events WHERE Id = {id.Value}")
+                $"SELECT \"AddedBy\", \"AddedDate\", \"UpdatedBy\", \"UpdatedDate\" FROM app.\"Events\" WHERE \"Id\" = {id.Value}")
             .SingleAsync(TestContext.Current.CancellationToken);
     }
 

@@ -10,15 +10,15 @@ namespace EventsManager.IntegrationTests;
 /// OR-P1 : colonnes d'audit DB-only (AddedBy, AddedDate, UpdatedBy, UpdatedDate) sur
 /// app.Orders et app.OrderLines — hors modèle EF, donc lues en SQL brut. Added*
 /// remplies par les contraintes DEFAULT à l'insertion ; Updated* par les triggers
-/// AFTER UPDATE (TR_Orders_Update_Audit, TR_OrderLines_Update_Audit).
+/// BEFORE UPDATE (TR_Orders_Update_Audit, TR_OrderLines_Update_Audit).
 /// </summary>
-public class OrderAuditColumnsTests(SqlServerContainerFixture fixture)
+public class OrderAuditColumnsTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateOnly Today = new(2026, 7, 13);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
     private static readonly DateTime CreatedAtUtc = new(2026, 7, 13, 12, 0, 0, DateTimeKind.Utc);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task Insert_PopulatesAddedColumns_AndLeavesUpdatedColumnsNull_OnOrders()
@@ -57,7 +57,7 @@ public class OrderAuditColumnsTests(SqlServerContainerFixture fixture)
             // L'agrégat est immuable et aucun use case de modification n'existe encore :
             // un UPDATE SQL direct suffit à prouver le trigger.
             await context.Database.ExecuteSqlAsync(
-                $"UPDATE app.Orders SET CustomerName = {newName} WHERE Id = {order.Id.Value}",
+                $"UPDATE app.\"Orders\" SET \"CustomerName\" = {newName} WHERE \"Id\" = {order.Id.Value}",
                 TestContext.Current.CancellationToken);
         }
 
@@ -75,7 +75,7 @@ public class OrderAuditColumnsTests(SqlServerContainerFixture fixture)
         await using (var context = _fixture.CreateContext())
         {
             await context.Database.ExecuteSqlAsync(
-                $"UPDATE app.OrderLines SET Quantity = 5 WHERE OrderId = {order.Id.Value}",
+                $"UPDATE app.\"OrderLines\" SET \"Quantity\" = 5 WHERE \"OrderId\" = {order.Id.Value}",
                 TestContext.Current.CancellationToken);
         }
 
@@ -107,7 +107,7 @@ public class OrderAuditColumnsTests(SqlServerContainerFixture fixture)
 
         return await context.Database
             .SqlQuery<AuditRow>(
-                $"SELECT AddedBy, AddedDate, UpdatedBy, UpdatedDate FROM app.Orders WHERE Id = {id.Value}")
+                $"SELECT \"AddedBy\", \"AddedDate\", \"UpdatedBy\", \"UpdatedDate\" FROM app.\"Orders\" WHERE \"Id\" = {id.Value}")
             .SingleAsync(TestContext.Current.CancellationToken);
     }
 
@@ -118,7 +118,7 @@ public class OrderAuditColumnsTests(SqlServerContainerFixture fixture)
         // Le setup ne crée qu'une seule ligne par commande : SingleAsync la vise sans ambiguïté.
         return await context.Database
             .SqlQuery<AuditRow>(
-                $"SELECT AddedBy, AddedDate, UpdatedBy, UpdatedDate FROM app.OrderLines WHERE OrderId = {orderId.Value}")
+                $"SELECT \"AddedBy\", \"AddedDate\", \"UpdatedBy\", \"UpdatedDate\" FROM app.\"OrderLines\" WHERE \"OrderId\" = {orderId.Value}")
             .SingleAsync(TestContext.Current.CancellationToken);
     }
 

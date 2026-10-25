@@ -14,7 +14,7 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string connectionString)
     {
-        services.AddDbContext<EventsManagerDbContext>(options => options.UseEventsManagerSqlServer(connectionString));
+        services.AddDbContext<EventsManagerDbContext>(options => options.UseEventsManagerPostgreSql(connectionString));
         services.AddScoped<IEventRepository, EventRepository>();
         services.AddScoped<IOrderRepository, OrderRepository>();
 

@@ -45,7 +45,7 @@ public sealed class CurrentEventApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
-        builder.UseSetting("ConnectionStrings:EventsManager", "Server=(unused);Database=EventsManagerApiTests");
+        builder.UseSetting("ConnectionStrings:EventsManager", "Host=(unused);Database=EventsManagerApiTests");
 
         builder.ConfigureTestServices(services =>
         {

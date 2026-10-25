@@ -11,7 +11,7 @@ namespace EventsManager.ApiTests;
 /// deux seulement :
 /// <list type="bullet">
 /// <item>une chaîne de connexion factice — EF Core n'ouvre aucune connexion au démarrage, donc
-/// aucun SQL Server ni Docker n'est requis pour ces tests ;</item>
+/// aucun PostgreSQL ni Docker n'est requis pour ces tests ;</item>
 /// <item>l'environnement forcé à Production — en Development, WebApplication insère sa page
 /// d'exception de développement en tête de pipeline, ce qui masque le contrat d'erreur qu'on
 /// vérifie ici (docs/api-conventions.md, section 4.5).</item>
@@ -24,7 +24,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Production");
-        builder.UseSetting("ConnectionStrings:EventsManager", "Server=(unused);Database=EventsManagerApiTests");
+        builder.UseSetting("ConnectionStrings:EventsManager", "Host=(unused);Database=EventsManagerApiTests");
 
         builder.ConfigureTestServices(services =>
         {

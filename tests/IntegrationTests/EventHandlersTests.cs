@@ -8,19 +8,19 @@ using Microsoft.EntityFrameworkCore;
 namespace EventsManager.IntegrationTests;
 
 /// <summary>
-/// La chaîne applicative complète contre un vrai SQL Server, graphe réel assemblé à la
+/// La chaîne applicative complète contre un vrai PostgreSQL, graphe réel assemblé à la
 /// main (pas de host DI) : création — ValidateAndThrowAsync → TodayLocal() → Event.Create
 /// → AddAsync (EF) ; lecture — EventId.From → GetByIdAsync (EF) → ToDto().
 /// Complète les tests unitaires des handlers (FakeEventRepository) et les tests
 /// d'intégration du repository : c'est le filet qui casse si un refactor déplace une
 /// couture (ex. SaveChanges sorti de AddAsync vers un unit of work).
 /// </summary>
-public class EventHandlersTests(SqlServerContainerFixture fixture)
+public class EventHandlersTests(PostgreSqlContainerFixture fixture)
 {
     private static readonly DateTimeOffset FixedUtcNow = new(2026, 7, 13, 12, 0, 0, TimeSpan.Zero);
     private static readonly DateOnly ValidDate = new(2026, 12, 31);
 
-    private readonly SqlServerContainerFixture _fixture = fixture;
+    private readonly PostgreSqlContainerFixture _fixture = fixture;
 
     [Fact]
     public async Task HandleAsync_CreateThenGet_RoundtripsThroughRealDatabase()

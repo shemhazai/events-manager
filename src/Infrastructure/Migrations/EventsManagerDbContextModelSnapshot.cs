@@ -3,8 +3,8 @@ using System;
 using EventsManager.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
-using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -19,14 +19,14 @@ namespace EventsManager.Infrastructure.Migrations
             modelBuilder
                 .HasDefaultSchema("app")
                 .HasAnnotation("ProductVersion", "10.0.9")
-                .HasAnnotation("Relational:MaxIdentifierLength", 128);
+                .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
-            SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+            NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("EventsManager.Domain.Events.Event", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("Date")
                         .HasColumnType("date");
@@ -34,7 +34,14 @@ namespace EventsManager.Infrastructure.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("NameLower")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasComputedColumnSql("lower(\"Name\")", true);
 
                     b.Property<DateOnly?>("OrderWindowEndDate")
                         .HasColumnType("date");
@@ -44,54 +51,45 @@ namespace EventsManager.Infrastructure.Migrations
 
                     b.Property<int>("Year")
                         .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("int")
-                        .HasComputedColumnSql("YEAR([Date])", true);
+                        .HasColumnType("integer")
+                        .HasComputedColumnSql("EXTRACT(YEAR FROM \"Date\")", true);
 
                     b.HasKey("Id");
 
                     b.HasIndex("Date");
 
-                    b.HasIndex("Name", "Year")
+                    b.HasIndex("NameLower", "Year")
                         .IsUnique();
 
                     b.ToTable("Events", "app", t =>
                         {
-                            t.HasTrigger("TR_Events_Update_Audit");
+                            t.HasCheckConstraint("CK_Events_OrderWindow_BothOrNeither", "(\"OrderWindowStartDate\" IS NULL AND \"OrderWindowEndDate\" IS NULL) OR (\"OrderWindowStartDate\" IS NOT NULL AND \"OrderWindowEndDate\" IS NOT NULL)");
 
-                            t.HasCheckConstraint("CK_Events_OrderWindow_BothOrNeither", "([OrderWindowStartDate] IS NULL AND [OrderWindowEndDate] IS NULL) OR ([OrderWindowStartDate] IS NOT NULL AND [OrderWindowEndDate] IS NOT NULL)");
-
-                            t.HasCheckConstraint("CK_Events_OrderWindow_Order", "[OrderWindowStartDate] IS NULL OR ([OrderWindowStartDate] <= [OrderWindowEndDate] AND [OrderWindowEndDate] <= [Date])");
+                            t.HasCheckConstraint("CK_Events_OrderWindow_Order", "\"OrderWindowStartDate\" IS NULL OR (\"OrderWindowStartDate\" <= \"OrderWindowEndDate\" AND \"OrderWindowEndDate\" <= \"Date\")");
                         });
-
-                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("EventsManager.Domain.Orders.Order", b =>
                 {
                     b.Property<Guid>("Id")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uuid");
 
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CustomerName")
                         .IsRequired()
                         .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
+                        .HasColumnType("character varying(100)");
 
                     b.Property<Guid>("EventId")
-                        .HasColumnType("uniqueidentifier");
+                        .HasColumnType("uuid");
 
                     b.HasKey("Id");
 
                     b.HasIndex("EventId", "CreatedAt");
 
-                    b.ToTable("Orders", "app", t =>
-                        {
-                            t.HasTrigger("TR_Orders_Update_Audit");
-                        });
-
-                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                    b.ToTable("Orders", "app");
                 });
 
             modelBuilder.Entity("EventsManager.Domain.Orders.Order", b =>
@@ -105,27 +103,32 @@ namespace EventsManager.Infrastructure.Migrations
                     b.OwnsMany("EventsManager.Domain.Orders.OrderLine", "Lines", b1 =>
                         {
                             b1.Property<Guid>("OrderId")
-                                .HasColumnType("uniqueidentifier");
+                                .HasColumnType("uuid");
 
                             b1.Property<string>("Label")
                                 .HasMaxLength(100)
-                                .HasColumnType("nvarchar(100)");
+                                .HasColumnType("character varying(100)");
+
+                            b1.Property<string>("LabelLower")
+                                .IsRequired()
+                                .ValueGeneratedOnAddOrUpdate()
+                                .HasMaxLength(100)
+                                .HasColumnType("character varying(100)")
+                                .HasComputedColumnSql("lower(\"Label\")", true);
 
                             b1.Property<int>("Quantity")
-                                .HasColumnType("int");
+                                .HasColumnType("integer");
 
                             b1.Property<decimal>("UnitPrice")
                                 .HasPrecision(9, 2)
-                                .HasColumnType("decimal(9,2)");
+                                .HasColumnType("numeric(9,2)");
 
                             b1.HasKey("OrderId", "Label");
 
-                            b1.ToTable("OrderLines", "app", t =>
-                                {
-                                    t.HasTrigger("TR_OrderLines_Update_Audit");
-                                });
+                            b1.HasIndex("OrderId", "LabelLower")
+                                .IsUnique();
 
-                            b1.HasAnnotation("SqlServer:UseSqlOutputClause", false);
+                            b1.ToTable("OrderLines", "app");
 
                             b1.WithOwner()
                                 .HasForeignKey("OrderId");
