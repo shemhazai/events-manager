@@ -85,11 +85,15 @@ l'hôte.
 - EV-U1 : deux événements ne peuvent pas porter le même nom dans la même année
   civile. `"Souper"` au `2026-09-12` et `"Souper"` au `2026-11-08` : le second est
   rejeté. `"Souper"` au `2027-03-01` est accepté
-- EV-U2 : la comparaison de noms de EV-U1 s'applique après trim
+- EV-U2 : la comparaison de noms de EV-U1 s'applique **après trim** et **sans égard à la
+  casse** (décision du 2026-10-12). `"Souper"` au `2026-09-12` et `"SOUPER"` au `2026-11-08` :
+  le second est rejeté. L'insensibilité est une **contrainte écrite dans la base** — colonne
+  générée `NameLower` et index unique `(NameLower, Year)` — et non plus un effet de bord de la
+  collation par défaut du serveur, comme c'était le cas jusqu'à la migration PostgreSQL
 - EV-U3 **(10a)** : deux événements ne peuvent pas partager la même date, quel que
   soit leur nom. `"Souper"` au `2026-09-12` et `"Barbecue"` au `2026-09-12` : le
   second est rejeté
-- EV-U4 : ces deux unicités sont garanties jusqu'en base, à prouver sur SQL Server
+- EV-U4 : ces deux unicités sont garanties jusqu'en base, à prouver sur PostgreSQL
   et pas seulement en mémoire
 
 ## Modification **(10a)**
@@ -382,7 +386,7 @@ ici pour mémoire : elle s'écrit dans `docs/api-conventions.md`, pas dans ce fi
 
 - EV-P1 : conventions existantes appliquées, colonnes d'audit DB-only comprises
 - EV-P2 : round-trip create → get → list → update → delete via les vrais handlers
-  sur SQL Server (Testcontainers)
+  sur PostgreSQL (Testcontainers)
 - EV-P3 : un événement invalide ne persiste rien
 - EV-P4 **(10a)** : les deux nouvelles dates sont persistées et relues à
   l'identique, y compris absentes des deux côtés

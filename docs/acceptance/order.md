@@ -69,6 +69,6 @@
 
 - OR-P1 : conventions existantes appliquées : colonnes d'audit DB-only, FK physique
   vers app.Events
-- OR-P2 : round-trip create → get → list via les vrais handlers sur SQL Server
+- OR-P2 : round-trip create → get → list via les vrais handlers sur PostgreSQL
   (Testcontainers)
 - OR-P3 : une commande invalide ne persiste rien, ni racine ni lignes
