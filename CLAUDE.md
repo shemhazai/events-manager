@@ -88,6 +88,47 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
 - **Footers** : format git trailer `Token: valeur`, token multi-mots avec `-` (ex. `Reviewed-by:`), seule exception `BREAKING CHANGE`.
 - Un commit = un seul type de changement : si plusieurs types s'appliquent, découper en plusieurs commits.
 
+## Exécution locale en conteneurs
+
+`docker-compose.yml` monte la pile complète : `db` (SQL Server Express), `api`, `web` (nginx),
+plus le service outil `migrate` rangé dans le profil `tools`, que `docker compose up` ne démarre
+donc jamais. Rien ici ne vise la production : le déploiement sur le NAS et la migration
+PostgreSQL sont une autre unité.
+
+**Préalable, une fois.** Copier `.env.example` en `.env` et y mettre un mot de passe conforme à
+la politique SQL Server (8 caractères minimum, trois classes sur quatre), **sans `$`** (compose
+interpole les valeurs du `.env`) et **sans `;`** (il couperait la chaîne de connexion). `.env`
+n'est jamais versionné.
+
+**Premier lancement, dans cet ordre.** Les migrations ne s'appliquent jamais au démarrage de
+l'API, et le seed non plus : les deux sont des gestes explicites.
+
+```bash
+docker compose up -d db
+docker compose run --rm migrate
+MSYS_NO_PATHCONV=1 docker compose exec db bash -lc '/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -C -b -d EventsManager -i /seed/saint-nicolas.sql'
+docker compose up -d
+```
+
+Le préfixe `MSYS_NO_PATHCONV=1` ne sert que sous Git Bash, dont la conversion de chemins
+réécrirait `/opt/...` en chemin Windows. Contrôle : `curl -i http://localhost:8080/api/events/current`
+rend un `200` à travers nginx. Hors de la fenêtre de commande du seed, du 2026-10-01 au
+2026-11-22, le `404` est le comportement correct (`EV-014`) et non une panne.
+
+**Relancement courant.** `docker compose up -d` et `docker compose down` : la base survit, elle
+vit dans le volume nommé `db-data`. `docker compose down -v` est le geste de remise à zéro, et
+impose de refaire `migrate` puis le seed. Après un changement de code, reconstruire avec
+`docker compose up -d --build`. Une nouvelle migration s'applique par un
+`docker compose run --rm migrate`, qui ne fait rien s'il n'y a rien à appliquer.
+
+**Trois comportements attendus, à ne pas prendre pour des défauts.** Le service `api` ne publie
+aucun port : nginx est le seul point d'entrée, donc `http://localhost:8080/api/...` est le seul
+chemin vers l'API. L'environnement reste `Production`, `MapOpenApi()` n'étant câblé qu'en
+Development : le conteneur ne sert aucun document OpenAPI, c'est voulu. Et l'image d'exécution de
+l'API est l'image `aspnet:10.0` **complète** et non une variante chiseled, qui n'embarque pas
+tzdata : toute route lisant la date du jour y rendrait un `500` sur un conteneur pourtant « Up »
+(voir le commentaire de `src/Application/TimeProviderExtensions.cs`).
+
 ## Structure du repo
 
 ```
@@ -101,6 +142,9 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
   .gitattributes             # autorité unique sur les fins de ligne (LF au dépôt)
   .git-blame-ignore-revs     # masque le commit de normalisation des fins de ligne
   events-manager.slnx        # solution à la racine
+  docker-compose.yml         # pile locale : db, api, web, plus l'outil migrate (profil tools)
+  .dockerignore              # contexte de l'image API (la racine) ; le front a le sien sous web/
+  .env.example               # modèle du .env local, non versionné (voir .gitignore)
   .config/
     dotnet-tools.json        # manifeste d'outils .NET locaux (dotnet-ef)
   .claude/
@@ -118,10 +162,15 @@ Tout message de commit suit la spec <https://www.conventionalcommits.org/en/v1.0
     harnais.html             # schéma du harnais agentic, à tenir à jour à chaque évolution
   src/                       # projets .NET uniquement
     Api/
+      Dockerfile             # image de l'API ; contexte de build = la racine du dépôt
     Application/
     Domain/
     Infrastructure/
   web/                       # app Angular, avec son propre CLAUDE.md
+    Dockerfile               # build pnpm puis service des statiques par nginx
+    .dockerignore
+    docker/
+      nginx.conf             # relais /api/ vers le conteneur api, repli SPA
   tests/
     UnitTests/
     ApiTests/                # pipeline HTTP via WebApplicationFactory, sans Docker
