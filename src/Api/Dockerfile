@@ -57,11 +57,30 @@ RUN mkdir -p /app \
       --configuration Release \
       --output /app/efbundle
 
+# ─── Étape 3bis : base commune des deux images d'exécution ───────────────────
+# Image COMPLÈTE, et non une variante chiseled : celles-ci n'embarquent ni ICU ni tzdata, et
+# TimeProviderExtensions.TodayLocal() rend alors un 500 sur toute route qui lit la date du jour,
+# alors même que le conteneur est « Up » (mesuré le 2026-10-18). Les 160 Mo économisés ne valent
+# pas une route cassée. Voir le commentaire de src/Application/TimeProviderExtensions.cs.
+#
+# libgssapi-krb5-2 n'est pas dans l'image aspnet, et Npgsql la charge au moment de négocier
+# l'authentification : sans elle, chaque conteneur écrit deux lignes dont une commence par
+# « Error: » à sa PREMIÈRE connexion à la base, puis se connecte quand même par mot de passe
+# (mesuré le 2026-10-25). Rien n'est cassé, mais une ligne « Error: » dans les logs d'un
+# conteneur sain apprend à ignorer les erreurs, et c'est la première chose que montreraient les
+# logs du NAS. Le paquet coûte 3 Mo par image, mesuré (352 à 355 Mo pour l'API). Posé ici et
+# pas deux fois plus bas : les deux images d'exécution partagent ainsi la couche.
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime-base
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+ && rm -rf /var/lib/apt/lists/*
+
 # ─── Étape 4 : exécution des migrations, sans SDK ─────────────────────────────
-# Même image de base que l'étape d'exécution : aucune image supplémentaire à tirer, couches
-# partagées. Appliquer les migrations reste un geste explicite — ce conteneur se lance par
+# Même base que l'étape d'exécution : aucune image supplémentaire à tirer, couches partagées.
+# Appliquer les migrations reste un geste explicite, ce conteneur se lance par
 # « docker compose run --rm migrate », il n'est chaîné à aucun « up ».
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS migrate
+FROM runtime-base AS migrate
 
 WORKDIR /app
 
@@ -72,11 +91,9 @@ USER $APP_UID
 ENTRYPOINT ["/app/efbundle"]
 
 # ─── Étape 5 : exécution de l'API ────────────────────────────────────────────
-# Image COMPLÈTE, et non une variante chiseled : celles-ci n'embarquent ni ICU ni tzdata, et
-# TimeProviderExtensions.TodayLocal() rend alors un 500 sur toute route qui lit la date du jour,
-# alors même que le conteneur est « Up » (mesuré le 2026-10-18). Les 160 Mo économisés ne valent
-# pas une route cassée. Voir le commentaire de src/Application/TimeProviderExtensions.cs.
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+# Base de l'étape 3bis, qui porte le choix de l'image complète, tzdata et la bibliothèque
+# que Npgsql sonde à la première connexion.
+FROM runtime-base AS runtime
 
 WORKDIR /app
 
