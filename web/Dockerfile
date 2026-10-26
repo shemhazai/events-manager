@@ -12,7 +12,9 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app
 
 # pnpm est activé depuis le champ packageManager de package.json, empreinte comprise : la version
-# du conteneur est donc celle du dépôt (12.2.1), indépendamment du pnpm installé sur le poste.
+# du conteneur est donc celle du dépôt, indépendamment du pnpm installé sur le poste. Elle n'est
+# pas répétée ici : recopiée, elle redeviendrait fausse au premier `corepack use`, et l'a déjà
+# été. package.json fait foi, seul.
 RUN corepack enable
 
 # pnpm-workspace.yaml fait partie du trio : c'est lui qui porte la politique allowBuilds, qui
