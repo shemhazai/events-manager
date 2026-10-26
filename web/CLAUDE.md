@@ -19,7 +19,7 @@
 
 - `src/app/layout/` : shell back-office (toolbar, navigation, page 404).
 - `src/app/features/<domaine>/` : une feature par domaine d'API (events, orders...), routes lazy par feature.
-- `src/app/core/` : configuration d'app (provideHttpClient, base URL API, intercepteurs à venir).
+- `src/app/core/` : configuration d'app (provideHttpClient, locale d'affichage, intercepteurs à venir). **Aucune base URL d'API, et c'est une décision** (2026-10-26) : nginx sert l'application *et* relaie `/api/`, donc le front et l'API partagent l'origine par construction et les appels sont **relatifs** (`/api/events/current`). Pas d'`environment.ts`, pas de variable d'environnement, rien à configurer par cible. Au `ng serve` cette origine commune est reconstituée par `web/proxy.conf.json`, qui vise `http://localhost:8080` parce que le service `api` du compose ne publie aucun port — nginx est le seul chemin vers l'API. Le jour où le front est servi par autre chose que nginx, la question se rouvre.
 - Modèles TS écrits à la main, alignés champ à champ sur les DTOs de l'API (contrats en primitifs). Pas de génération de client.
 
 ## Outillage
