@@ -1,0 +1,29 @@
+// Proxy du serveur de développement. Lu par @angular/build:dev-server via l'option
+// proxyConfig de la cible serve (angular.json). Les commentaires sont licites ici : le
+// loader passe les .json par jsonc-parser, pas par JSON.parse.
+//
+// POURQUOI CE FICHIER EXISTE
+// En conteneurs, nginx sert les fichiers statiques ET relaie /api/ vers l'API : même
+// origine par construction, donc le front appelle /api/events/current en relatif, sans
+// base URL et sans variable d'environnement. Au `ng serve` cette origine commune
+// disparaît — 4200 d'un côté, l'API de l'autre — et ce fichier la reconstitue. C'est son
+// seul rôle.
+//
+// POURQUOI LA CIBLE EST 8080 ET NON UN PORT DE L'API
+// Le service `api` du docker-compose ne publie AUCUN port : nginx sur 8080 est le seul
+// chemin vers l'API depuis le poste. Conséquence à connaître, pas un défaut : la pile
+// locale doit tourner pour que `ng serve` serve à quelque chose, sinon 502 sur /api/.
+// L'alternative — lancer l'API hors Docker — demanderait un port, un secret de connexion
+// et une seconde façon de joindre l'API. Deux chemins pour la même chose.
+//
+// POURQUOI /api/** ET NON /api
+// Le filtrage du dev-server traite « /api » comme un préfixe, qui matcherait donc aussi
+// /api-docs. « /api/** » matche /api, /api/events et /api/events/current, et rien
+// d'autre : exactement la portée du « location /api/ » de docker/nginx.conf.
+//
+// Pas de « secure » : cette option ne vise que les cibles HTTPS à certificat auto-signé.
+{
+  "/api/**": {
+    "target": "http://localhost:8080"
+  }
+}
