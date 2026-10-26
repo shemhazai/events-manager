@@ -1,0 +1,21 @@
+// Espacements par les --app-*, couleurs par les --mat-sys-* : aucun token redéfini, aucune
+// couleur en dur.
+:host {
+  display: block;
+}
+
+.event-card {
+  max-width: 32rem;
+}
+
+.event-line,
+.event-message {
+  display: flex;
+  align-items: center;
+  gap: var(--app-spacing-sm);
+  margin: var(--app-spacing-sm) 0;
+}
+
+.event-message--error {
+  color: var(--mat-sys-error);
+}

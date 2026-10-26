@@ -1,0 +1,52 @@
+<h1>Prochain évènement</h1>
+
+<!--
+  Une seule lecture de l'état, et le narrowing de l'union porte l'évènement jusqu'à la
+  branche qui l'affiche : le template ne décide rien, il rend ce que `view()` a décidé.
+-->
+@let current = view();
+
+@if (current.kind === 'loading') {
+  <mat-progress-spinner mode="indeterminate" aria-label="Chargement en cours" />
+} @else if (current.kind === 'found') {
+  <mat-card appearance="outlined" class="event-card">
+    <mat-card-header>
+      <mat-card-title>{{ current.event.name }}</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <!--
+        Locale fr-BE enregistrée dans core/ : « 6 décembre 2026 ». Sans elle, Angular
+        formaterait en en-US et rendrait « December 6, 2026 » sans rien casser au build.
+      -->
+      <p class="event-line">
+        <mat-icon aria-hidden="true">event</mat-icon>
+        <span>Le {{ current.event.date | date: 'longDate' }}</span>
+      </p>
+      <p class="event-line">
+        <mat-icon aria-hidden="true">schedule</mat-icon>
+        <span
+          >Commandes ouvertes jusqu'au {{ current.event.order_window_end_date | date: 'longDate' }}</span
+        >
+      </p>
+    </mat-card-content>
+  </mat-card>
+} @else if (current.kind === 'none') {
+  <!--
+    EV-016 : état normal et attendu, onze mois sur douze. Ni ton d'erreur, ni icône
+    d'alerte, ni couleur d'erreur — ce n'est pas une panne.
+  -->
+  <p class="event-message">
+    <mat-icon aria-hidden="true">event_busy</mat-icon>
+    <span>Aucun évènement à venir pour le moment.</span>
+  </p>
+} @else {
+  <!--
+    La couleur n'est jamais le seul porteur de l'information : l'icône et le mot la doublent
+    tous les deux. Le primary du thème est rouge, donc l'erreur M3 l'est aussi, et un rouge
+    seul ne distinguerait rien.
+  -->
+  <p class="event-message event-message--error" role="alert">
+    <mat-icon aria-hidden="true">error</mat-icon>
+    <span>Le prochain évènement n'a pas pu être chargé.</span>
+  </p>
+}
