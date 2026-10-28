@@ -132,7 +132,7 @@ impose de refaire `migrate` puis le seed. Après un changement de code, reconstr
 `docker compose up -d --build`. Une nouvelle migration s'applique par un
 `docker compose run --rm migrate`, qui ne fait rien s'il n'y a rien à appliquer.
 
-**Quatre comportements attendus, à ne pas prendre pour des défauts.** Le service `api` ne publie
+**Trois comportements attendus, à ne pas prendre pour des défauts.** Le service `api` ne publie
 aucun port : nginx est le seul point d'entrée, donc `http://localhost:8080/api/...` est le seul
 chemin vers l'API. L'environnement reste `Production`, `MapOpenApi()` n'étant câblé qu'en
 Development : le conteneur ne sert aucun document OpenAPI, c'est voulu. Et l'image d'exécution de
@@ -140,14 +140,22 @@ l'API est l'image `aspnet:10.0` **complète** et non une variante chiseled, qui 
 tzdata : toute route lisant la date du jour y rendrait un `500` sur un conteneur pourtant « Up »
 (voir le commentaire de `src/Application/TimeProviderExtensions.cs`).
 
-Quatrième, apparu avec Npgsql et mesuré le 2026-10-25 : les conteneurs `api` et `migrate`
-écrivent `Cannot load library libgssapi_krb5.so.2` suivi d'un `Error: ...` **à leur première
-connexion, et une seule fois**. C'est la sonde GSSAPI de Npgsql, que l'image `aspnet:10.0`
-n'embarque pas. Elle est **non fatale** et sans effet ici : l'authentification se fait par mot de
-passe, la requête qui suit la ligne d'erreur s'exécute normalement, et le `migrate` sort en 0.
-Le mot « Error » est trompeur, pas le comportement. Rien n'est ajouté à l'image pour le faire
-taire — ce serait embarquer Kerberos pour une fonction qu'on n'utilise pas. À reconsidérer dans
-l'unité de déploiement NAS, où l'hygiène des journaux compte.
+**Ce que les images d'exécution ajoutent à `aspnet:10.0`, et pourquoi.** Un seul paquet :
+`libgssapi-krb5-2`, posé dans l'étage `runtime-base` partagé par `api` et `migrate` — donc une
+couche, et pas deux. Npgsql charge cette bibliothèque au moment de négocier l'authentification,
+et sans elle chaque conteneur écrivait `Cannot load library libgssapi_krb5.so.2` suivi d'un
+`Error: ...` à sa **première** connexion (mesuré le 2026-10-25). Rien n'était cassé — la
+connexion se faisait ensuite par mot de passe et le `migrate` sortait en 0 — mais une ligne
+« Error: » dans les journaux d'un conteneur sain apprend à ignorer les erreurs, et les journaux
+sont la première chose qu'on regarde sur le NAS. Le paquet coûte **3 Mo par image**, mesuré sur
+le poste : c'est le prix, assumé depuis `0ab6adf` (2026-10-25). Ne pas le retirer en croyant
+alléger l'image, le symptôme reviendrait.
+
+Conséquence à garder en tête : ce message **ne doit plus apparaître**, donc s'il revient c'est un
+vrai défaut et non un bruit connu. Contrôle du 2026-10-28 sur le NAS, pile debout : 63 lignes de
+journaux du conteneur `api`, aucune occurrence de `gssapi`, de `krb5` ni d'`Error`. Le conteneur
+`migrate` partage le même étage `runtime-base`, mais son journal n'a pas été relu — il est lancé
+par `run --rm` et disparaît avec lui.
 
 ## Déploiement sur le NAS Synology
 
