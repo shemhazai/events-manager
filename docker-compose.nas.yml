@@ -1,0 +1,125 @@
+# Copie de référence du fichier déployé sur le NAS Synology, à placer dans
+# /volume1/docker/events-manager/docker-compose.yml
+#
+# IL NE CONSTRUIT RIEN. Les trois images events-manager-* sont construites sur le poste puis
+# poussées dans le démon Docker du NAS par un tube SSH — docker save | ssh 'docker load' —
+# sans archive intermédiaire sur le disque et sans registry. Ce fichier ne porte donc que
+# « image: », là où celui de la racine porte « build: ».
+#
+# Ce qu'il faut à côté de lui, dans le même dossier, et qui n'est pas versionné :
+#   .env     les trois POSTGRES_*, avec un mot de passe DIFFÉRENT de celui du poste
+#   seed/    le saint-nicolas.sql copié depuis db/seed/
+#
+# Le dossier de ce fichier est le RÉPERTOIRE DE PROJET de compose, et c'est de lui que
+# viennent le .env lu automatiquement et la résolution de « ./seed ». La documentation Docker
+# le définit comme --project-directory s'il est donné, sinon le dossier du PREMIER fichier
+# passé en -f, sinon le répertoire courant. Donc
+# « docker compose -f /volume1/docker/events-manager/docker-compose.yml » trouve bien le .env
+# voisin, quel que soit le dossier depuis lequel la commande est lancée.
+#
+# Piège à connaître : une variable non définie s'interpole en CHAÎNE VIDE. Compose le signale
+# sur stderr — « The "POSTGRES_PASSWORD" variable is not set. Defaulting to a blank string. » —
+# mais il N'ÉCHOUE PAS pour autant : « config » sort en 0 et rend POSTGRES_PASSWORD: "". La
+# panne n'apparaît qu'ensuite, quand l'image postgres refuse de s'initialiser sans mot de passe,
+# avec un message qui ne désigne pas la cause, et l'avertissement se noie dans la sortie d'un
+# « up ». deploy-nas.ps1 contrôle donc explicitement la présence du .env avant tout démarrage.
+#
+# Les différences avec le docker-compose.yml de la racine, toutes voulues :
+#   - aucun « build: », et « pull_policy: never » sur les trois images poussées ;
+#   - « db » n'en porte PAS : il doit pouvoir tirer postgres:18.6 depuis Docker Hub ;
+#   - aucun port publié pour « db », là où la pile locale expose 127.0.0.1:5432 ;
+#   - « restart: unless-stopped » sur les trois services durables ;
+#   - le seed est monté depuis ./seed, et non depuis ./db/seed.
+
+services:
+  db:
+    image: postgres:18.6
+    # PAS de « pull_policy » ici, et c'est délibéré : cette image n'est pas poussée depuis le
+    # poste, le NAS la tire lui-même. 650 Mo par un tube SSH contre un docker pull direct, le
+    # choix est vite fait. Y mettre « never » empêcherait le tirage et le service ne
+    # démarrerait jamais.
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # AUCUN port publié. Rien sur le NAS n'en a besoin : « docker compose exec db psql » suffit
+    # pour les quelques interventions manuelles, et ne rien publier supprime la question de la
+    # surface d'attaque au lieu de la traiter. Second motif, mesuré le 2026-10-26 : quelque
+    # chose écoute DÉJÀ sur 5432 côté NAS, sur la boucle locale — en toute probabilité le
+    # PostgreSQL embarqué de DSM.
+    volumes:
+      # /var/lib/postgresql ET NON /var/lib/postgresql/data : depuis la 18, l'image place
+      # PGDATA dans /var/lib/postgresql/18/docker et déclare son VOLUME sur le parent. Monter
+      # .../data ne persisterait RIEN, et la pile tournerait quand même — la différence
+      # n'apparaîtrait qu'au premier « down ». C'est ici le seul endroit où vivront les
+      # commandes des parents, donc l'erreur serait irréparable.
+      - db-data:/var/lib/postgresql
+      # Volume nommé pour les données, bind mount pour le seed, et la dissymétrie est voulue :
+      # un volume nommé évite les ACL Synology et l'utilisateur postgres de l'image, source
+      # classique d'échec au démarrage ; le seed, lui, ne demande qu'une lecture.
+      - ./seed:/seed:ro
+    healthcheck:
+      # -h localhost force le TCP, et ce n'est pas décoratif : sans -h, pg_isready passe par la
+      # socket Unix, que le serveur TEMPORAIRE de l'initialisation écoute déjà (l'entrypoint le
+      # démarre avec « -c listen_addresses='' »). Le service serait donc « healthy » avant que
+      # le TCP n'écoute, et migrate partirait trop tôt.
+      # $$POSTGRES_USER : les variables sont lues DANS le conteneur, pas interpolées ici.
+      test: ["CMD-SHELL", "pg_isready -h localhost -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Service outil, rangé dans un profil : « docker compose up » ne le démarre jamais. Migrer
+  # reste un geste explicite — docker compose run --rm migrate — et l'API n'exécute aucun DDL.
+  migrate:
+    image: events-manager-migrate:latest
+    pull_policy: never
+    profiles: [tools]
+    # PAS de « restart » ici, à la différence des trois autres services : ce conteneur est un
+    # one-shot lancé par « run --rm », et la documentation Docker précise que --rm supprime le
+    # conteneur « even if a restart policy is specified in the service configuration ». Une
+    # politique y serait donc inerte et trompeuse — même raison qui bannit HasTrigger de la
+    # configuration fluent EF.
+    depends_on:
+      db:
+        condition: service_healthy
+    # --connection remplace la chaîne de dev codée en dur dans la factory design-time. Sur un
+    # serveur vierge, le bundle crée la base puis applique les migrations.
+    command:
+      - --connection
+      - Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+
+  api:
+    image: events-manager-api:latest
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # ASPNETCORE_ENVIRONMENT reste à son défaut, Production : MapOpenApi() n'est câblé qu'en
+    # Development, donc le NAS ne sert aucun document OpenAPI, et c'est voulu.
+    environment:
+      ConnectionStrings__EventsManager: Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    # AUCUN port publié : nginx est le seul point d'entrée de la pile.
+
+  web:
+    image: events-manager-web:latest
+    pull_policy: never
+    restart: unless-stopped
+    # service_started et non service_healthy : l'API n'a pas de healthcheck, il n'y a pas de
+    # GET /health dans cette unité. Ce depends_on n'est pas décoratif pour autant — nginx
+    # résout « api » au chargement de sa configuration et refuserait de démarrer sans le
+    # conteneur. Conséquence assumée : un 502 est possible le temps que l'API se mette à écouter.
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      # 8080, mesuré libre sur le NAS le 2026-10-26, et le même nombre que la pile locale : une
+      # divergence de moins entre deux fichiers qui se ressemblent déjà beaucoup. DSM occupe
+      # 5000 et 5001, vaultwarden 3012 et 5151, filezilla 7171 et 7172.
+      - "8080:80"
+
+volumes:
+  db-data:
