@@ -149,6 +149,120 @@ Le mot « Error » est trompeur, pas le comportement. Rien n'est ajouté à l'im
 taire — ce serait embarquer Kerberos pour une fonction qu'on n'utilise pas. À reconsidérer dans
 l'unité de déploiement NAS, où l'hygiène des journaux compte.
 
+## Déploiement sur le NAS Synology
+
+Premier déploiement réussi le 2026-10-28. L'application tourne sur la machine qui la servira,
+avec la base qui la servira, et la page de l'évènement courant est joignable **depuis le réseau
+local** sur `http://192.168.0.201:8080/`.
+
+**Ce que ce déploiement n'atteint pas, et il faut le dire :** un parent ne peut pas encore y
+accéder. L'exposition publique demande un nom de domaine, un certificat et le reverse proxy de
+DSM — zéro Docker, trois réglages dans DSM. C'est une unité à part, et la confondre avec
+celle-ci ferait croire la cible atteinte alors que personne d'extérieur ne pourrait commander.
+Réserve à garder honnête : la page a été ouverte **depuis le navigateur du poste**, et non depuis
+une autre machine du réseau. Le relais nginx et la route réseau sont donc prouvés, mais pas
+l'indépendance au poste de développement — ce qui était l'objet du critère.
+
+**La cible.** NAS en SSH sur `192.168.0.201`, port **154**, utilisateur `sepa`, clé
+`~/.ssh/id_sepa_nas`, règle sudoers NOPASSWD sur `/usr/local/bin/docker`. Le **chemin absolu**
+de `docker` est obligatoire : le `secure_path` de sudo n'inclut pas `/usr/local/bin`. Tout vit
+dans `/volume1/docker/events-manager/`, qui est aussi le **répertoire de projet** de compose —
+c'est de lui que viennent le `.env` lu automatiquement et la résolution de `./seed`.
+
+**Ce qui n'est pas versionné et vit uniquement sur le NAS :** le `.env`, en `-rw-------`. Son
+mot de passe est généré **par le NAS lui-même** et ne quitte jamais le NAS : il est donc
+différent de celui du poste par construction. `docker-compose.nas.yml` du dépôt est la **copie
+de référence** de la pile ; il ne porte que des `${POSTGRES_*}`, jamais une valeur.
+
+**Déploiement courant.** `./deploy-nas.ps1` construit, synchronise le compose et le seed, pousse
+les trois images et démarre la pile, puis **lit la réponse** de l'API et de la page. `-SkipBuild`
+redéploie sans reconstruire ; `-Migrate` applique les migrations avant le démarrage. Le script
+vérifie la présence du `.env` avant de démarrer quoi que ce soit, et n'y touche **jamais**.
+
+**Premier déploiement sur une cible vierge**, dans cet ordre. Le secret est fabriqué sur place :
+il n'est ni saisi, ni transmis, ni affiché, et personne n'a à le connaître — `docker compose exec
+db psql` n'en a pas besoin, et il reste lisible sur le NAS si le besoin s'en présente.
+
+```bash
+ssh -p 154 -i ~/.ssh/id_sepa_nas sepa@192.168.0.201 'mkdir -p /volume1/docker/events-manager && umask 077 && printf "POSTGRES_DB=EventsManager\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=%s\n" "$(openssl rand -hex 24)" > /volume1/docker/events-manager/.env && chmod 600 /volume1/docker/events-manager/.env'
+```
+
+```bash
+./deploy-nas.ps1 -Migrate
+```
+
+```bash
+ssh -p 154 -i ~/.ssh/id_sepa_nas sepa@192.168.0.201 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml exec -T db psql -U postgres -d EventsManager -v ON_ERROR_STOP=on -f /seed/saint-nicolas.sql'
+```
+
+`openssl rand -hex 24` plutôt qu'un base64 : l'hexadécimal ne contient ni `$` ni `;`, les deux
+caractères que `.env.example` interdit, donc aucune contrainte de jeu de caractères à vérifier.
+`ON_ERROR_STOP=on` reste l'équivalent du `-b` de `sqlcmd` — sans lui, psql poursuit après une
+erreur et sort en 0, donc un seed à moitié appliqué passerait pour un succès. Le `-T`, en
+revanche, est de la **prudence et non une nécessité** : mesuré le 2026-10-28, ni `exec` ni
+`run --rm` n'en ont besoin derrière un `ssh` non interactif sur compose v2.20.1, qui détecte
+l'absence de TTY et s'y adapte. On le garde parce qu'il est explicite et qu'il protège d'une
+version de compose moins tolérante, pas parce qu'il débloque quoi que ce soit ici.
+
+**Six comportements à ne pas prendre pour des défauts.** Les quatre premiers tiennent à l'écart
+entre les deux démons : le poste est en **Docker 29.7.2, compose v5.4.0, magasin d'images
+containerd** ; le NAS en **Docker 24.0.2, compose v2.20.1, btrfs**.
+
+1. **Pas de `gzip` dans le tube.** Mesuré le 2026-10-26 sur les trois images : 236 316 672 octets
+   bruts contre 234 748 013 gzippés, soit **0,66 %**. La cause est le **magasin d'images
+   containerd du poste**, qui conserve les couches telles que le registre les a livrées, donc
+   compressées — la documentation Docker l'écrit, « containerd stores images in both compressed
+   and uncompressed formats ». Ce n'est **pas** une propriété du numéro de version, et la nuance
+   compte : un poste revenu au pilote de stockage classique pourrait produire un tar non
+   compressé, et les ~840 Mo redeviendraient d'actualité sans que rien n'alerte. Si le magasin
+   change, **re-mesurer avant de conclure**.
+2. **Construire les trois images en une passe n'est pas cosmétique.** `api` et `migrate`
+   partagent l'étage `runtime-base` du Dockerfile, mais construites à des moments différents
+   elles reposent sur des tirages différents d'`aspnet:10.0` et ne partagent alors **aucune**
+   couche. Mesuré : 225,4 MiB d'archive. Reconstruites en une passe, 8 couches sur 9 sont
+   communes et l'archive tombe à **133,1 MiB**. D'où le `docker compose --profile tools build
+   --pull` unique du script. Le `--profile tools` est obligatoire : sans lui `migrate` est exclu
+   du build, son service étant dans un profil.
+3. **Le démon 24.0.2 du NAS charge bien l'archive OCI du poste** — mesuré le 2026-10-28, avec et
+   sans `--platform`. Le script garde `--platform linux/amd64` par hygiène : il aplatit l'index et
+   écarte le manifeste d'attestation `unknown/unknown` que BuildKit ajoute et dont le NAS n'a
+   aucun usage. Ce n'est pas une nécessité, c'est un choix.
+4. **`docker compose ps --format` ne prend pas de template Go** sur compose v2.20.1, alors que la
+   v5.4.0 du poste l'accepte. Pour une preuve précise des ports publiés, passer par le démon :
+   `docker inspect --format '{{json .HostConfig.PortBindings}}'`.
+5. **`scp` nu échoue** sur `subsystem request failed on channel 0`. OpenSSH moderne fait passer
+   `scp` par **SFTP**, que le serveur SSH de DSM n'expose pas. Le drapeau **`-O`** force le
+   protocole SCP historique et règle la question. Repli sans aucune dépendance :
+   `ssh ... 'cat > /chemin/cible' < fichier.local`, le même tube que pour les images.
+6. **`#Requires -Version 7.4` dans `deploy-nas.ps1`, et pas 7.2.** `about_Pipelines` l'écrit :
+   « Before PowerShell 7.4, piping or redirecting output from a native program that outputs raw
+   byte data converted the output to .NET strings. This conversion caused corruption of the raw
+   data output », et « In PowerShell 7.4 or higher, the `PSNativeCommandPreserveBytePipe`
+   experimental feature is mainstream ». Le `docker save | ssh` du script en dépend entièrement.
+
+**Un piège qui ne vient d'aucune version : le `.env` manquant.** Une variable non définie
+s'interpole en **chaîne vide**. Compose le signale — mesuré le 2026-10-28, il écrit sur stderr
+`The "POSTGRES_PASSWORD" variable is not set. Defaulting to a blank string.` —, mais il
+**n'échoue pas pour autant** : `config` sort en 0 et rend `POSTGRES_PASSWORD: ""`. La panne
+n'apparaît qu'ensuite, quand l'image postgres refuse de s'initialiser sans mot de passe, et son
+message ne désigne pas la cause. L'avertissement existe donc, mais il se noie dans la sortie d'un
+`up` : c'est pourquoi `deploy-nas.ps1` contrôle explicitement la présence du `.env` avant de
+démarrer.
+
+**Mesures du 2026-10-28, pile debout.** La pile consomme **101,5 MiB** au total — `web` 5,16,
+`api` 51,84, `db` 44,5 — sur un NAS qui dispose de **18 Go libres** sur 19,4. `api` et `db` ne
+publient **aucun port** (`PortBindings` vide) : nginx, sur 8080, est le seul point d'entrée. Les
+trois services portent `restart: unless-stopped` ; `migrate` non, car il est lancé par
+`run --rm`, et `--rm` supprime le conteneur même si une politique est déclarée.
+
+**Hors de cette unité, et à ne pas perdre.** L'exposition publique. La **sauvegarde du volume** —
+aujourd'hui `events-manager_db-data` est la seule copie des commandes des parents ; à trancher
+avant les premières vraies commandes : `pg_dump` périodique vers un partage, ou snapshots DSM. Et
+le **login applicatif à droits restreints** : `.env.example` renvoie ce travail à « l'unité de
+déploiement sur le NAS », alors que la pile y tourne avec le superutilisateur `postgres` et que
+le référentiel de l'unité ne le mentionnait pas. Le point reste donc ouvert, et ce paragraphe est
+là pour qu'il ne se découvre pas par surprise.
+
 ## Structure du repo
 
 ```
@@ -163,6 +277,8 @@ l'unité de déploiement NAS, où l'hygiène des journaux compte.
   .git-blame-ignore-revs     # masque le commit de normalisation des fins de ligne
   events-manager.slnx        # solution à la racine
   docker-compose.yml         # pile locale : db, api, web, plus l'outil migrate (profil tools)
+  docker-compose.nas.yml     # copie de référence de la pile déployée sur le NAS
+  deploy-nas.ps1             # build, poussée par tube SSH et démarrage de la pile sur le NAS
   .dockerignore              # contexte de l'image API (la racine) ; le front a le sien sous web/
   .env.example               # modèle du .env local, non versionné (voir .gitignore)
   .config/
