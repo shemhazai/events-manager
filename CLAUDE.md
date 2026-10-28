@@ -153,38 +153,71 @@ l'unité de déploiement NAS, où l'hygiène des journaux compte.
 
 Premier déploiement réussi le 2026-10-28. L'application tourne sur la machine qui la servira,
 avec la base qui la servira, et la page de l'évènement courant est joignable **depuis le réseau
-local** sur `http://192.168.0.201:8080/`.
+local**, sur le port **8080** du NAS.
 
 **Ce que ce déploiement n'atteint pas, et il faut le dire :** un parent ne peut pas encore y
 accéder. L'exposition publique demande un nom de domaine, un certificat et le reverse proxy de
 DSM — zéro Docker, trois réglages dans DSM. C'est une unité à part, et la confondre avec
 celle-ci ferait croire la cible atteinte alors que personne d'extérieur ne pourrait commander.
-Réserve à garder honnête : la page a été ouverte **depuis le navigateur du poste**, et non depuis
-une autre machine du réseau. Le relais nginx et la route réseau sont donc prouvés, mais pas
-l'indépendance au poste de développement — ce qui était l'objet du critère.
+La page a été ouverte **depuis une autre machine du réseau** le 2026-10-28, et non depuis le seul
+poste de développement : le relais nginx, la route réseau et l'indépendance au poste sont donc
+tous les trois prouvés, ce qui était l'objet du critère.
 
-**La cible.** NAS en SSH sur `192.168.0.201`, port **154**, utilisateur `sepa`, clé
-`~/.ssh/id_sepa_nas`, règle sudoers NOPASSWD sur `/usr/local/bin/docker`. Le **chemin absolu**
-de `docker` est obligatoire : le `secure_path` de sudo n'inclut pas `/usr/local/bin`. Tout vit
-dans `/volume1/docker/events-manager/`, qui est aussi le **répertoire de projet** de compose —
-c'est de lui que viennent le `.env` lu automatiquement et la résolution de `./seed`.
+**La cible, et où elle est décrite.** Les coordonnées d'accès — adresse, port SSH, utilisateur,
+chemin de la clé — ne sont **plus** dans les fichiers versionnés. Elles vivent dans
+`deploy-nas.local.psd1`, dont `deploy-nas.local.example.psd1` est le modèle, et une seconde fois
+dans `.claude/settings.local.json`, qui porte les règles de permission des commandes distantes et
+dont `.claude/settings.local.example.json` est le modèle. Les deux fichiers réels sont ignorés par
+git ; leurs deux modèles sont versionnés, de sorte qu'un clone neuf sache quoi reconstituer.
+
+**Mais « plus » ne veut pas dire « jamais », et il faut le dire ici plutôt que le découvrir.** Les
+quatre commits qui ont introduit cette section — `c4cb0e6` à `2ea0666`, **déjà poussés** — portent
+les valeurs en clair. Un `git log -p -- CLAUDE.md .claude/settings.json` les rend toujours, sur le
+dépôt distant. Le retrait vaut donc pour la suite, pas pour le passé, et **ces coordonnées sont à
+considérer comme publiques**. Réécrire l'historique d'une branche déjà publiée n'est pas la
+réponse proportionnée pour des données de ce niveau — aucune clé, aucun mot de passe, et une
+adresse RFC 1918 non routable. La réponse proportionnée est côté NAS, et elle prend une minute :
+**décaler le port SSH**, ce qui périme l'information publiée. Tant que ce n'est pas fait, le port
+et l'utilisateur sont connus de qui lit le dépôt, ce qui ne coûte rien aujourd'hui et coûtera le
+jour où le NAS sera exposé — l'unité suivante.
+
+L'utilisateur SSH doit porter une règle sudoers NOPASSWD sur `/usr/local/bin/docker`, et le
+**chemin absolu** de `docker` est obligatoire : le `secure_path` de sudo n'inclut pas
+`/usr/local/bin`. Tout vit dans `/volume1/docker/events-manager/`, qui est aussi le **répertoire
+de projet** de compose — c'est de lui que viennent le `.env` lu automatiquement et la résolution
+de `./seed`.
 
 **Ce qui n'est pas versionné et vit uniquement sur le NAS :** le `.env`, en `-rw-------`. Son
 mot de passe est généré **par le NAS lui-même** et ne quitte jamais le NAS : il est donc
 différent de celui du poste par construction. `docker-compose.nas.yml` du dépôt est la **copie
 de référence** de la pile ; il ne porte que des `${POSTGRES_*}`, jamais une valeur.
 
-**Déploiement courant.** `./deploy-nas.ps1` construit, synchronise le compose et le seed, pousse
-les trois images et démarre la pile, puis **lit la réponse** de l'API et de la page. `-SkipBuild`
-redéploie sans reconstruire ; `-Migrate` applique les migrations avant le démarrage. Le script
-vérifie la présence du `.env` avant de démarrer quoi que ce soit, et n'y touche **jamais**.
+**Déploiement courant.** `./deploy-nas.ps1` lit ses coordonnées dans `deploy-nas.local.psd1`,
+construit, synchronise le compose et le seed, pousse les trois images et démarre la pile, puis
+**lit la réponse** de l'API et de la page. `-SkipBuild` redéploie sans reconstruire ; `-Migrate`
+applique les migrations avant le démarrage ; chaque coordonnée reste surchargeable par le
+paramètre du même nom (`-NasHost`, `-Port`, `-User`, `-IdentityFile`). Seules ces quatre clés sont
+lues dans le fichier local : `RemoteDir` et `BaseUrl` sont des paramètres, et les y écrire n'aurait
+aucun effet. Le script vérifie la présence du `.env` avant de démarrer quoi que ce soit, et n'y
+touche **jamais**.
 
-**Premier déploiement sur une cible vierge**, dans cet ordre. Le secret est fabriqué sur place :
-il n'est ni saisi, ni transmis, ni affiché, et personne n'a à le connaître — `docker compose exec
-db psql` n'en a pas besoin, et il reste lisible sur le NAS si le besoin s'en présente.
+**Premier déploiement sur une cible vierge**, dans cet ordre. Chaque bloc ci-dessous porte ses
+propres affectations et se colle donc tel quel : les variables ne survivraient pas d'un bloc à
+l'autre, et un `$NAS_USER` vide ne produirait pas une erreur lisible mais une cible silencieusement
+fausse. Elles sont préfixées `NAS_` pour la même raison — `USER` est déjà peuplé par le shell avec
+le login local, et une collision aurait fait pointer la commande vers le mauvais compte sans rien
+signaler.
+
+Le secret est fabriqué sur place : il n'est ni saisi, ni transmis, ni affiché, et personne n'a à
+le connaître — `docker compose exec db psql` n'en a pas besoin, et il reste lisible sur le NAS si
+le besoin s'en présente. Noter le partage du travail entre les deux shells : `$NAS_PORT`,
+`$NAS_KEY`, `$NAS_USER` et `$NAS_HOST` sont hors des guillemets simples, donc évalués **sur le
+poste**, tandis que `$(openssl rand -hex 24)` est à l'intérieur, donc évalué **sur le NAS** —
+c'est exactement ce qui fait que le mot de passe ne traverse jamais le réseau.
 
 ```bash
-ssh -p 154 -i ~/.ssh/id_sepa_nas sepa@192.168.0.201 'mkdir -p /volume1/docker/events-manager && umask 077 && printf "POSTGRES_DB=EventsManager\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=%s\n" "$(openssl rand -hex 24)" > /volume1/docker/events-manager/.env && chmod 600 /volume1/docker/events-manager/.env'
+NAS_HOST=<adresse>; NAS_PORT=<port>; NAS_USER=<utilisateur>; NAS_KEY=~/.ssh/<clé>
+ssh -p $NAS_PORT -i $NAS_KEY $NAS_USER@$NAS_HOST 'mkdir -p /volume1/docker/events-manager && umask 077 && printf "POSTGRES_DB=EventsManager\nPOSTGRES_USER=postgres\nPOSTGRES_PASSWORD=%s\n" "$(openssl rand -hex 24)" > /volume1/docker/events-manager/.env && chmod 600 /volume1/docker/events-manager/.env'
 ```
 
 ```bash
@@ -192,7 +225,8 @@ ssh -p 154 -i ~/.ssh/id_sepa_nas sepa@192.168.0.201 'mkdir -p /volume1/docker/ev
 ```
 
 ```bash
-ssh -p 154 -i ~/.ssh/id_sepa_nas sepa@192.168.0.201 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml exec -T db psql -U postgres -d EventsManager -v ON_ERROR_STOP=on -f /seed/saint-nicolas.sql'
+NAS_HOST=<adresse>; NAS_PORT=<port>; NAS_USER=<utilisateur>; NAS_KEY=~/.ssh/<clé>
+ssh -p $NAS_PORT -i $NAS_KEY $NAS_USER@$NAS_HOST 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml exec -T db psql -U postgres -d EventsManager -v ON_ERROR_STOP=on -f /seed/saint-nicolas.sql'
 ```
 
 `openssl rand -hex 24` plutôt qu'un base64 : l'hexadécimal ne contient ni `$` ni `;`, les deux
@@ -279,6 +313,7 @@ là pour qu'il ne se découvre pas par surprise.
   docker-compose.yml         # pile locale : db, api, web, plus l'outil migrate (profil tools)
   docker-compose.nas.yml     # copie de référence de la pile déployée sur le NAS
   deploy-nas.ps1             # build, poussée par tube SSH et démarrage de la pile sur le NAS
+  deploy-nas.local.example.psd1  # modèle des coordonnées du NAS ; le .local.psd1 n'est PAS versionné
   .dockerignore              # contexte de l'image API (la racine) ; le front a le sien sous web/
   .env.example               # modèle du .env local, non versionné (voir .gitignore)
   .config/
@@ -289,6 +324,8 @@ là pour qu'il ne se découvre pas par surprise.
     skills/                  # design-ui
     launch.json              # serveur de dev front (prévisualisation), cible `web`
     settings.json            # permissions, MCP pré-approuvés, attribution
+    settings.local.json      # NON VERSIONNÉ : permissions des commandes distantes vers le NAS
+    settings.local.example.json  # modèle du précédent, lui VERSIONNÉ
   db/
     seed/                    # scripts SQL de données, appliqués À LA MAIN, hors migrations
   docs/
