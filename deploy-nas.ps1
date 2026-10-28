@@ -8,6 +8,13 @@
     du NAS par un tube SSH : aucune archive intermédiaire sur le disque, aucun registry.
     postgres:18.6 n'est pas poussée — le NAS la tire lui-même depuis Docker Hub.
 
+    OÙ SONT LES COORDONNÉES DU NAS
+    Pas ici. Adresse, port, utilisateur et chemin de clé vivent dans deploy-nas.local.psd1,
+    non versionné, dont deploy-nas.local.example.psd1 est le modèle. Ce ne sont pas des secrets
+    — aucune clé, aucun mot de passe — mais dans un dépôt public elles deviennent de la
+    reconnaissance utile le jour où le NAS sera exposé, ce qui est l'unité suivante. Chaque
+    valeur reste surchargeable par le paramètre du même nom.
+
     POURQUOI #Requires -Version 7.4, ET PAS 7.2 COMME LE SCRIPT DU POC
     about_Pipelines l'écrit noir sur blanc : « Before PowerShell 7.4, piping or redirecting
     output from a native program that outputs raw byte data converted the output to .NET
@@ -47,17 +54,19 @@
 .EXAMPLE
     .\deploy-nas.ps1 -Migrate
     Comme ci-dessus, en appliquant les migrations avant de démarrer la pile.
+
+.EXAMPLE
+    .\deploy-nas.ps1 -NasHost nas.lan -Port 2222
+    Surcharge ponctuelle de deux valeurs du fichier local.
 #>
 [CmdletBinding()]
 param(
-    [string] $NasHost      = '192.168.0.201',
-    [int]    $Port         = 154,
-    [string] $User         = 'sepa',
-    [string] $IdentityFile = "$env:USERPROFILE\.ssh\id_sepa_nas",
-    [string] $RemoteDir    = '/volume1/docker/events-manager',
-    # Dérivé de $NasHost, et non recopié en dur : un -NasHost autre vérifierait sinon la
-    # mauvaise machine en silence, ce qui est exactement le genre de vert trompeur qu'on fuit.
-    [string] $BaseUrl      = "http://${NasHost}:8080",
+    [string] $NasHost,
+    [int]    $Port,
+    [string] $User,
+    [string] $IdentityFile,
+    [string] $RemoteDir = '/volume1/docker/events-manager',
+    [string] $BaseUrl,
     [switch] $SkipBuild,
     [switch] $Migrate
 )
@@ -76,6 +85,63 @@ $images = @(
 # Le contexte de build doit être la racine du dépôt, quel que soit le dossier courant.
 Push-Location $PSScriptRoot
 try {
+    # ─── Coordonnées : paramètre explicite, sinon fichier local, sinon on s'arrête ──────────
+    $configFile  = Join-Path $PSScriptRoot 'deploy-nas.local.psd1'
+    $exampleFile = 'deploy-nas.local.example.psd1'
+    $config = @{}
+    if (Test-Path $configFile) {
+        # Un psd1 vide, ou reduit a ses commentaires, fait rendre $null au cmdlet APRES avoir
+        # ecrit une erreur — mesure le 2026-10-28. Sans ces deux gardes, le ContainsKey plus bas
+        # leverait « You cannot call a method on a null-valued expression », qui ne designe ni le
+        # fichier ni la cause. On rattrape pour rendre la main au message guide de plus bas.
+        try {
+            $loaded = Import-PowerShellDataFile -Path $configFile
+        }
+        catch {
+            throw "Le fichier $configFile existe mais n'est pas un fichier de donnees PowerShell valide : $($_.Exception.Message) Modele : $exampleFile"
+        }
+        if ($null -ne $loaded) {
+            $config = $loaded
+        }
+    }
+
+    function Resolve-Coordinate {
+        param(
+            [AllowEmptyString()] [string] $Provided,
+            [hashtable] $Config,
+            [string] $Key
+        )
+        if (-not [string]::IsNullOrWhiteSpace($Provided)) {
+            return $Provided
+        }
+        if ($Config.ContainsKey($Key) -and -not [string]::IsNullOrWhiteSpace([string]$Config[$Key])) {
+            return [string]$Config[$Key]
+        }
+        throw "Coordonnee « $Key » introuvable. Renseignez-la dans deploy-nas.local.psd1 (modele : $exampleFile), ou passez -$Key au script."
+    }
+
+    $NasHost = Resolve-Coordinate -Provided $NasHost -Config $config -Key 'NasHost'
+    $User    = Resolve-Coordinate -Provided $User    -Config $config -Key 'User'
+    if ($Port -le 0) {
+        $Port = [int](Resolve-Coordinate -Provided '' -Config $config -Key 'Port')
+    }
+    if ($Port -le 0) {
+        # Le modele pose Port = 0, invalide par construction : sans ce controle, ssh recevrait
+        # « -p 0 » et echouerait sur un message qui ne designe pas la cause.
+        throw "Coordonnee « Port » invalide ($Port). Renseignez un port SSH valide dans deploy-nas.local.psd1 (modele : $exampleFile), ou passez -Port au script."
+    }
+    # ExpandEnvironmentVariables et NON une expansion de chaine PowerShell : le psd1 a ete choisi
+    # parce qu'il ne porte que de la donnee, et ExpandString y reintroduirait l'evaluation de
+    # $(...). Effet de bord evite au passage : un chemin contenant un « $» n'est plus altere.
+    $IdentityFile = [Environment]::ExpandEnvironmentVariables(
+        (Resolve-Coordinate -Provided $IdentityFile -Config $config -Key 'IdentityFile'))
+
+    if ([string]::IsNullOrWhiteSpace($BaseUrl)) {
+        # Derive de $NasHost, et non recopie en dur : un -NasHost autre verifierait sinon la
+        # mauvaise machine en silence, ce qui est exactement le genre de vert trompeur qu'on fuit.
+        $BaseUrl = "http://${NasHost}:8080"
+    }
+
     if (-not (Test-Path $IdentityFile)) {
         throw "Cle $IdentityFile absente : le deploiement ne peut pas s'authentifier."
     }

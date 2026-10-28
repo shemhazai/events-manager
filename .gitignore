@@ -60,3 +60,7 @@ appsettings.*.local.json
 secrets.json
 # Secret de la pile locale en conteneurs. Modèle versionné : .env.example
 .env
+# Coordonnées d'accès au NAS (adresse, port SSH, utilisateur, chemin de clé). Pas un secret au
+# sens strict, mais de la reconnaissance utile une fois le NAS exposé publiquement, ce qui est
+# l'unité suivante. Modèle versionné : deploy-nas.local.example.psd1
+deploy-nas.local.psd1
