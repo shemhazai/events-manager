@@ -1,0 +1,41 @@
+{
+  "_commentaire": [
+    "Modèle de .claude/settings.local.json, qui n'est PAS versionné (voir .gitignore).",
+    "Remplacer <port>, <fichier-de-cle>, <utilisateur> et <adresse-du-nas> par les valeurs",
+    "réelles, les mêmes que celles de deploy-nas.local.psd1. Supprimer cette clé au passage :",
+    "elle n'est là que pour le modèle.",
+    "",
+    "POURQUOI CES RÈGLES EXISTENT, ET POURQUOI ELLES SONT SI ÉTROITES",
+    "Une règle unique « Bash(ssh -p <port> -i ... <utilisateur>@<adresse> *) » couvrirait tout",
+    "le déploiement en une ligne, mais pré-approuverait du même coup « down -v », « volume rm »",
+    "et « rm -rf » — alors que le volume events-manager_db-data est aujourd'hui la seule copie",
+    "des commandes des parents, sans sauvegarde. Les gestes sont donc énumérés un par un, en",
+    "préfixe exact. Tout ce qui n'est pas listé repasse par l'invite, « down » compris.",
+    "",
+    "Préfixes plutôt qu'une liste « deny » : le préfixe est la seule sémantique de filtrage que",
+    "la documentation garantit, et une règle de refus qui ne matcherait pas rassurerait à tort.",
+    "",
+    "Les listes « allow » de settings.json et settings.local.json FUSIONNENT — mesuré le",
+    "2026-10-28 — donc ce fichier n'écrase pas les règles du projet, il s'y ajoute.",
+    "",
+    "Portée réelle : ces règles filtrent les appels directs de l'agent, pas deploy-nas.ps1, qui",
+    "lance ssh depuis pwsh. Le script est donc le point de confiance, et il ne contient aucun",
+    "geste destructeur."
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(scp -P <port> -i ~/.ssh/<fichier-de-cle> -O db/seed/saint-nicolas.sql *)",
+      "Bash(scp -P <port> -i ~/.ssh/<fichier-de-cle> -O docker-compose.nas.yml *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'mkdir -p /volume1/docker/events-manager/seed')",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml exec -T db psql -U postgres -d EventsManager -v ON_ERROR_STOP=on -f /seed/saint-nicolas.sql')",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml logs *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml ps')",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml ps *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml run --rm migrate')",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker compose -f /volume1/docker/events-manager/docker-compose.yml up *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker images *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker inspect *)",
+      "Bash(ssh -p <port> -i ~/.ssh/<fichier-de-cle> <utilisateur>@<adresse-du-nas> 'sudo /usr/local/bin/docker load')"
+    ]
+  }
+}
