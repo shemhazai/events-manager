@@ -11,6 +11,14 @@
 #   ${VAR} est interpolé PAR COMPOSE, depuis .env, à la lecture de ce fichier
 #   $$VAR  n'est pas touché par compose et reste évalué DANS le conteneur
 
+# Les trois services construits portent un « image: » EXPLICITE en plus de leur « build: ».
+# Sans lui, compose nomme l'image construite d'après le nom de projet, lui-même dérivé du NOM
+# DU DOSSIER : renommer le répertoire du dépôt renommerait les images, et le
+# docker-compose.nas.yml comme deploy-nas.ps1, qui les désignent en dur, cesseraient de les
+# trouver. L'échec serait silencieux côté NAS — « pull_policy: never » plus image absente donne
+# un service qui ne démarre jamais, sans rien dire d'utile. Le nom devient donc un contrat
+# écrit, et non un effet de bord du nom du dossier.
+
 services:
   db:
     # La même image que la fixture Testcontainers des tests d'intégration
@@ -49,6 +57,7 @@ services:
   # Service outil, rangé dans un profil : « docker compose up » ne le démarre jamais. Migrer
   # reste un geste explicite — docker compose run --rm migrate — et l'API n'exécute aucun DDL.
   migrate:
+    image: events-manager-migrate:latest
     build:
       context: .
       dockerfile: src/Api/Dockerfile
@@ -64,6 +73,7 @@ services:
       - Host=db;Port=5432;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
 
   api:
+    image: events-manager-api:latest
     build:
       context: .
       dockerfile: src/Api/Dockerfile
@@ -79,6 +89,7 @@ services:
     # AUCUN port publié : nginx est le seul point d'entrée de la pile.
 
   web:
+    image: events-manager-web:latest
     build:
       context: ./web
       target: runtime
